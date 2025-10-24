@@ -6,6 +6,43 @@ const glob = require('@actions/glob');
 const fs = require('fs').promises;
 const path = require('path');
 
+/**
+ * Run a command with timeout using Linux native timeout command
+ * @param {string} command - Command to run
+ * @param {string[]} args - Command arguments
+ * @param {object} options - Options including cwd and timeoutSeconds
+ * @returns {Promise<number>} Exit code (124 if timeout, per timeout command convention)
+ */
+async function execWithTimeout(command, args, options = {}) {
+    const {cwd, timeoutSeconds} = options;
+    
+    console.log(`Running: ${command} ${args.join(' ')}`);
+    console.log(`Timeout: ${(timeoutSeconds / 60).toFixed(0)} minutes (${(timeoutSeconds / 3600).toFixed(2)} hours)`);
+    
+    // Use Linux native timeout command
+    // -k 5m: Send SIGKILL if process doesn't die within 5 minutes after initial signal
+    // -s INT: Send SIGINT (graceful, like Ctrl+C) as initial signal
+    // Exit code 124: timeout occurred
+    const timeoutArgs = [
+        '-k', '5m',           // Kill after 5 min if not responding
+        '-s', 'INT',          // Send SIGINT first (graceful)
+        `${timeoutSeconds}s`, // Timeout in seconds
+        command,
+        ...args
+    ];
+    
+    const exitCode = await exec.exec('timeout', timeoutArgs, {
+        cwd: cwd,
+        ignoreReturnCode: true
+    });
+    
+    if (exitCode === 124) {
+        console.log(`⏱️ Timeout reached after ${(timeoutSeconds / 60).toFixed(0)} minutes`);
+    }
+    
+    return exitCode;
+}
+
 async function run() {
     process.on('SIGINT', function() {
     });
@@ -108,6 +145,8 @@ async function run() {
     }
 
     let buildSuccess = false;
+    const JOB_START_TIME = Date.now();
+    const MAX_JOB_TIME = 270 * 60 * 1000; // 4.5 hours in milliseconds
 
     try {
         // Stage 1: npm run init (downloads Chromium and dependencies)
@@ -152,15 +191,35 @@ async function run() {
         }
 
         // Stage 2: npm run build (compile Brave - component build by default)
-        // Linux builds are typically faster than Windows, so we use full 5.5 hour timeout
+        // Timeout = 4.5 hours - time already spent in this job
         if (currentStage === 'build') {
+            const elapsedTime = Date.now() - JOB_START_TIME;
+            let remainingTime = MAX_JOB_TIME - elapsedTime;
+            // TODO: temporary to test if builds are resumed correctly
+            remainingTime = 11*60*1000
+            
             console.log('=== Stage: npm run build ===');
+            console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
+            console.log(`Remaining time calculated: ${(remainingTime / 3600000).toFixed(2)} hours`);
+            
+            // Apply timeout rules:
+            // 1. If remaining time < 0, set to 10 minutes
+            // 2. Minimum timeout is 10 minutes
+            const MIN_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+            remainingTime = Math.max(remainingTime, MIN_TIMEOUT);
+            
+            if (remainingTime < MIN_TIMEOUT) {
+                console.log(`⚠️ Remaining time (${(remainingTime / 60000).toFixed(1)} min) is less than minimum, setting to 10 minutes`);
+                remainingTime = MIN_TIMEOUT;
+            }
+            
+            const timeoutSeconds = Math.floor(remainingTime / 1000);
+            console.log(`Final timeout: ${(timeoutSeconds / 60).toFixed(0)} minutes (${(timeoutSeconds / 3600).toFixed(2)} hours)`);
             console.log('Running npm run build (component build)...');
             
-            // GitHub Actions has 6-hour limit, we target 5.5 hours to allow cleanup time
-            const buildCode = await exec.exec('npm', ['run', 'build'], {
+            const buildCode = await execWithTimeout('npm', ['run', 'build'], {
                 cwd: braveDir,
-                ignoreReturnCode: true
+                timeoutSeconds: timeoutSeconds
             });
             
             if (buildCode === 0) {
@@ -168,6 +227,10 @@ async function run() {
                 await fs.writeFile(markerFile, 'package');
                 currentStage = 'package';
                 buildSuccess = true;
+            } else if (buildCode === 124) {
+                // Exit code 124 = timeout (per Linux timeout command convention)
+                console.log('⏱️ npm run build timed out - will resume in next stage');
+                // Stay in build stage for next run
             } else {
                 console.log(`✗ npm run build failed with code ${buildCode}`);
                 // Stay in build stage to retry
