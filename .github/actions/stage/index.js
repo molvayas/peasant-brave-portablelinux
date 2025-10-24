@@ -355,6 +355,7 @@ async function run() {
         
         // Compress critical build directories AND marker file
         // We use tar + zstd for better compression and speed on Linux
+        // IMPORTANT: Do NOT exclude .o files - they ARE the build progress!
         const stateArchive = path.join(workDir, 'build-state.tar.zst');
         
         console.log('Compressing build state...');
@@ -362,8 +363,6 @@ async function run() {
             '-C', workDir, 
             '--use-compress-program=zstd -3 -T0',
             '--exclude=src/.git',
-            '--exclude=*.o',
-            '--exclude=*.a',
             'src', 'build-stage.txt'], 
             {ignoreReturnCode: true});
 
