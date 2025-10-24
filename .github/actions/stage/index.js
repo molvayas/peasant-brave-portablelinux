@@ -145,10 +145,10 @@ async function run() {
             const artifactInfo = await artifact.getArtifact(artifactName);
             await artifact.downloadArtifact(artifactInfo.artifact.id, {path: downloadPath});
             
-            // Extract the tarball
+            // Extract the tarball (using pipe like ungoogled-chromium)
             console.log('Extracting build state...');
-            await exec.exec('tar', ['-xf', path.join(downloadPath, 'build-state.tar.zst'), 
-                '-C', workDir, '--use-compress-program=unzstd']);
+            const archivePath = path.join(downloadPath, 'build-state.tar.zst');
+            await exec.exec('sh', ['-c', `zstd -d -c "${archivePath}" | tar -xf - -C "${workDir}"`]);
             
             await io.rmRF(downloadPath);
         } catch (e) {
@@ -251,8 +251,6 @@ async function run() {
         if (currentStage === 'build') {
             const elapsedTime = Date.now() - JOB_START_TIME;
             let remainingTime = MAX_JOB_TIME - elapsedTime;
-            // TODO: temporary to test if builds are resumed correctly
-            remainingTime = 11*60*1000
             
             console.log('=== Stage: npm run build ===');
             console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
@@ -353,17 +351,16 @@ async function run() {
         
         await new Promise(r => setTimeout(r, 5000));
         
-        // Compress critical build directories AND marker file
-        // We use tar + zstd for better compression and speed on Linux
+        // Compress critical build directories AND marker file (using pipe like ungoogled-chromium)
         // IMPORTANT: Do NOT exclude .o files - they ARE the build progress!
+        // IMPORTANT: Include src/.git to match Windows (which includes everything)
+        // Using pipe for tar+zstd is more reliable than --use-compress-program
         const stateArchive = path.join(workDir, 'build-state.tar.zst');
         
         console.log('Compressing build state...');
-        await exec.exec('tar', ['-cf', stateArchive, 
-            '-C', workDir, 
-            '--use-compress-program=zstd -3 -T0',
-            'src', 'build-stage.txt'], 
-            {ignoreReturnCode: true});
+        await exec.exec('sh', ['-c', 
+            `cd "${workDir}" && tar -cf - src build-stage.txt | zstd -f -T0 -3 -o "${stateArchive}"`
+        ], {ignoreReturnCode: true});
 
         // Upload intermediate artifact
         for (let i = 0; i < 5; ++i) {
