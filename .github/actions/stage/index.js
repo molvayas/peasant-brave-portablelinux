@@ -80,6 +80,10 @@ async function run() {
         console.log('Work directory already exists');
     }
 
+    // Install 7zip to match Windows behavior EXACTLY
+    console.log('Installing 7zip...');
+    await exec.exec('sudo', ['apt-get', 'install', '-y', 'p7zip-full'], {ignoreReturnCode: true});
+    
     // Free up disk space on GitHub Actions runner
     // Ubuntu runners have ~14GB free, but Brave needs ~100GB
     // Removing unused tools frees up ~25-30GB
@@ -145,10 +149,10 @@ async function run() {
             const artifactInfo = await artifact.getArtifact(artifactName);
             await artifact.downloadArtifact(artifactInfo.artifact.id, {path: downloadPath});
             
-            // Extract the tarball (using pipe like ungoogled-chromium)
+            // Extract using 7zip (EXACTLY like Windows)
             console.log('Extracting build state...');
-            const archivePath = path.join(downloadPath, 'build-state.tar.zst');
-            await exec.exec('sh', ['-c', `zstd -d -c "${archivePath}" | tar -xf - -C "${workDir}"`]);
+            await exec.exec('7z', ['x', path.join(downloadPath, 'build-state.zip'),
+                `-o${workDir}`, '-y']);
             
             await io.rmRF(downloadPath);
         } catch (e) {
@@ -351,16 +355,15 @@ async function run() {
         
         await new Promise(r => setTimeout(r, 5000));
         
-        // Compress critical build directories AND marker file (using pipe like ungoogled-chromium)
-        // IMPORTANT: Do NOT exclude .o files - they ARE the build progress!
-        // IMPORTANT: Include src/.git to match Windows (which includes everything)
-        // Using pipe for tar+zstd is more reliable than --use-compress-program
-        const stateArchive = path.join(workDir, 'build-state.tar.zst');
+        // Compress using 7zip (EXACTLY like Windows does)
+        const stateZip = path.join(workDir, 'build-state.zip');
         
         console.log('Compressing build state...');
-        await exec.exec('sh', ['-c', 
-            `cd "${workDir}" && tar -cf - src build-stage.txt | zstd -f -T0 -3 -o "${stateArchive}"`
-        ], {ignoreReturnCode: true});
+        await exec.exec('7z', ['a', '-tzip', stateZip,
+            path.join(workDir, 'src'),
+            path.join(workDir, 'build-stage.txt'),
+            '-mx=3', '-mtc=on'], 
+            {ignoreReturnCode: true});
 
         // Upload intermediate artifact
         for (let i = 0; i < 5; ++i) {
@@ -370,7 +373,7 @@ async function run() {
                 // ignored
             }
             try {
-                await artifact.uploadArtifact(artifactName, [stateArchive], workDir, 
+                await artifact.uploadArtifact(artifactName, [stateZip], workDir, 
                     {retentionDays: 1, compressionLevel: 0});
                 console.log('Successfully uploaded checkpoint artifact');
                 break;
