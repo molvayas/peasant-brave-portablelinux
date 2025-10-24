@@ -255,6 +255,8 @@ async function run() {
         if (currentStage === 'build') {
             const elapsedTime = Date.now() - JOB_START_TIME;
             let remainingTime = MAX_JOB_TIME - elapsedTime;
+            // TODO: temporary to test if builds are resumed correctly
+            remainingTime = 11*60*1000
             
             console.log('=== Stage: npm run build ===');
             console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
