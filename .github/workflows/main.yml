@@ -9,14 +9,6 @@ jobs:
   build-1:
     runs-on: ubuntu-latest
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
-          remove-docker-images: 'true'
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Node.js
@@ -43,14 +35,6 @@ jobs:
     needs: build-1
     runs-on: ubuntu-latest
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
-          remove-docker-images: 'true'
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Node.js
@@ -77,14 +61,6 @@ jobs:
     needs: build-2
     runs-on: ubuntu-latest
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
-          remove-docker-images: 'true'
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Node.js
@@ -111,14 +87,6 @@ jobs:
     needs: build-3
     runs-on: ubuntu-latest
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
-          remove-docker-images: 'true'
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Node.js
@@ -145,14 +113,6 @@ jobs:
     needs: build-4
     runs-on: ubuntu-latest
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
-          remove-docker-images: 'true'
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Node.js
@@ -179,14 +139,6 @@ jobs:
     needs: build-5
     runs-on: ubuntu-latest
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
-          remove-docker-images: 'true'
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Node.js

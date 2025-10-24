@@ -244,7 +244,41 @@ This script (from Chromium):
 
 ## Linux-Specific Optimizations
 
-### 1. Compression Strategy
+### 1. Disk Space Cleanup (Critical!)
+
+Ubuntu runners start with ~14GB free, but Brave needs ~100GB. **This is the most important optimization.**
+
+**Implementation** (runs at start of every stage):
+```javascript
+const cleanupDirs = [
+    '/usr/share/dotnet',           // .NET SDK (~10GB)
+    '/usr/local/lib/android',      // Android SDK (~8GB)
+    '/usr/local/.ghcup',           // GHC/Haskell (~2GB)
+    '/usr/lib/jvm',                // Java JDKs (~1GB)
+    '/usr/lib/google-cloud-sdk',   // Google Cloud (~1GB)
+    '/usr/share/swift',            // Swift (~1GB)
+    '/opt/ghc',                    // More Haskell (~1GB)
+    '/opt/hostedtoolcache/CodeQL'  // CodeQL (~1GB)
+];
+
+for (const dir of cleanupDirs) {
+    await exec.exec('sudo', ['rm', '-rf', dir], {ignoreReturnCode: true});
+}
+
+// Also prune Docker images
+await exec.exec('sudo', ['docker', 'image', 'prune', '--all', '--force']);
+```
+
+**Result**: Frees ~25-30GB of space
+
+**Inspired by**:
+- ungoogled-chromium-archlinux
+- ungoogled-chromium-portablelinux
+- maximize-build-space action
+
+**Without this cleanup**: Builds fail with "No space left on device" error within 1-2 hours.
+
+### 2. Compression Strategy
 
 ```bash
 # Compress
@@ -266,25 +300,6 @@ tar -xf build-state.tar.zst \
 - Level 3: Good balance (faster than level 5-9)
 - Native tool: No installation needed
 - Consistent with Linux ecosystem
-
-### 2. Disk Space Management
-
-Ubuntu runners start with ~14GB free, but Brave needs ~100GB.
-
-**Solution**:
-```javascript
-// In import-cache.sh (ungoogled-chromium approach)
-sudo rm -rf /usr/local/lib/android \
-            /usr/local/.ghcup \
-            /usr/lib/jvm \
-            /usr/lib/google-cloud-sdk \
-            /usr/lib/dotnet \
-            /usr/share/swift
-```
-
-**Result**: Frees ~25GB of space
-
-**Applied automatically** during artifact extraction in our workflow.
 
 ### 3. Dependency Installation
 

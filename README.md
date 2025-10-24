@@ -14,7 +14,6 @@ This repository uses a sophisticated multi-stage build approach to compile Brave
 - **Version-tagged builds** - Uses Brave version tags for reproducible builds
 - **Automatic releases** - Publishes built binaries to GitHub Releases
 - **Linux optimizations** - Native tar/zstd compression, faster than Windows builds
-- **Disk space maximization** - Uses [maximize-build-space](https://github.com/easimon/maximize-build-space) to gain 60GB+ by removing unnecessary software
 
 ## How It Works
 
@@ -107,13 +106,10 @@ Artifacts are published to GitHub Releases automatically.
 ### Build Environment
 
 - **Runner**: `ubuntu-latest` (Ubuntu 22.04)
-- **Node.js**: v24
+- **Node.js**: v20
 - **Python**: 3.11
 - **Build directory**: `/home/runner/brave-build`
 - **Compression**: tar + zstd with level 3 for checkpoints
-- **Disk space**: ~60-70GB available after cleanup (vs ~30GB default)
-  - Removes: .NET, Android SDK, Haskell, CodeQL, Docker images
-  - Reserves: 8GB for root filesystem, 1GB swap
 
 ### Artifact Strategy
 
@@ -136,10 +132,13 @@ Set during build:
 
 ### Linux-Specific Optimizations
 
-1. **No path length issues** - Linux doesn't have the 260-character limit like Windows
-2. **Faster builds** - Linux toolchain is typically faster than MSVC
-3. **Better compression** - Native zstd support with multi-threading
-4. **Fewer stages** - 6 stages vs 8 on Windows (builds complete faster)
+1. **Automatic disk cleanup** - Removes unused tools (~25-30GB freed)
+   - Deletes: .NET SDK, Android SDK, GHC, Java, Google Cloud SDK, Swift, CodeQL
+   - Essential for fitting Brave build in GitHub Actions runners
+2. **No path length issues** - Linux doesn't have the 260-character limit like Windows
+3. **Faster builds** - Linux toolchain is typically faster than MSVC
+4. **Better compression** - Native zstd support with multi-threading
+5. **Fewer stages** - 6 stages vs 8 on Windows (builds complete faster)
 
 ## Comparison with Windows Build
 
@@ -150,6 +149,7 @@ Set during build:
 | Build directory | C:\brave-build | /home/runner/brave-build |
 | Path issues | Yes (260 char limit) | No |
 | Build speed | Slower | Faster |
+| Disk cleanup | Not needed (larger disk) | Automatic (~25-30GB freed) |
 | Runner | windows-2022 | ubuntu-latest |
 
 ## Directory Structure

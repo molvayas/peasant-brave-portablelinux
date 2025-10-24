@@ -184,7 +184,10 @@ use_sysroot = true                # Use Chromium's sysroot
 **Issue**: Out of disk space
 - **Symptom**: Build fails during compilation
 - **Requirement**: ~100GB free space minimum
-- **Solution**: Clean old build artifacts or use larger disk
+- **Built-in solution**: Workflow automatically removes unused tools (~25-30GB freed)
+  - Removes: .NET, Android SDK, GHC, Java, Google Cloud SDK, Swift, CodeQL
+  - Prunes Docker images
+- **Additional solution**: Clean old build artifacts or use larger disk
 
 **Issue**: Out of memory
 - **Symptom**: Linker crashes or OOM killer activates
