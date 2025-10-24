@@ -362,7 +362,6 @@ async function run() {
         await exec.exec('tar', ['-cf', stateArchive, 
             '-C', workDir, 
             '--use-compress-program=zstd -3 -T0',
-            '--exclude=src/.git',
             'src', 'build-stage.txt'], 
             {ignoreReturnCode: true});
 
