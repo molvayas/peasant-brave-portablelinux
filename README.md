@@ -14,6 +14,7 @@ This repository uses a sophisticated multi-stage build approach to compile Brave
 - **Version-tagged builds** - Uses Brave version tags for reproducible builds
 - **Automatic releases** - Publishes built binaries to GitHub Releases
 - **Linux optimizations** - Native tar/zstd compression, faster than Windows builds
+- **Disk space maximization** - Uses [maximize-build-space](https://github.com/easimon/maximize-build-space) to gain 60GB+ by removing unnecessary software
 
 ## How It Works
 
@@ -106,10 +107,13 @@ Artifacts are published to GitHub Releases automatically.
 ### Build Environment
 
 - **Runner**: `ubuntu-latest` (Ubuntu 22.04)
-- **Node.js**: v20
+- **Node.js**: v24
 - **Python**: 3.11
 - **Build directory**: `/home/runner/brave-build`
 - **Compression**: tar + zstd with level 3 for checkpoints
+- **Disk space**: ~60-70GB available after cleanup (vs ~30GB default)
+  - Removes: .NET, Android SDK, Haskell, CodeQL, Docker images
+  - Reserves: 8GB for root filesystem, 1GB swap
 
 ### Artifact Strategy
 
