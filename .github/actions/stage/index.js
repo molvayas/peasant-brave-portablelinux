@@ -256,7 +256,7 @@ async function run() {
             const elapsedTime = Date.now() - JOB_START_TIME;
             let remainingTime = MAX_JOB_TIME - elapsedTime;
             // TODO: temporary to test if builds are resumed correctly
-            remainingTime = 11*60*1000
+            remainingTime = 6*60*1000
             
             console.log('=== Stage: npm run build ===');
             console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
@@ -265,7 +265,7 @@ async function run() {
             // Apply timeout rules:
             // 1. If remaining time < 0, set to 10 minutes
             // 2. Minimum timeout is 10 minutes
-            const MIN_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+            const MIN_TIMEOUT = 5 * 60 * 1000; // 10 minutes
             remainingTime = Math.max(remainingTime, MIN_TIMEOUT);
             
             if (remainingTime < MIN_TIMEOUT) {
