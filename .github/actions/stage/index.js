@@ -211,7 +211,7 @@ async function run() {
 
     let buildSuccess = false;
     const JOB_START_TIME = Date.now();
-    const MAX_JOB_TIME = 120 * 60 * 1000; // 4.5 hours in milliseconds
+    const MAX_JOB_TIME = 300 * 60 * 1000;
 
     try {
         // Stage 1: npm run init (downloads Chromium and dependencies)
@@ -261,7 +261,7 @@ async function run() {
             const elapsedTime = Date.now() - JOB_START_TIME;
             let remainingTime = MAX_JOB_TIME - elapsedTime;
             // TODO: temporary to test if builds are resumed correctly
-            remainingTime = 11*60*1000
+            // remainingTime = 11*60*1000
             
             console.log('=== Stage: npm run build ===');
             console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
@@ -280,17 +280,10 @@ async function run() {
             
             const timeoutSeconds = Math.floor(remainingTime / 1000);
             console.log(`Final timeout: ${(timeoutSeconds / 60).toFixed(0)} minutes (${(timeoutSeconds / 3600).toFixed(2)} hours)`);
-            console.log('Running npm run build (component build with ninja debug flags)...');
+            console.log('Running npm run build (component build)...');
             
-            // Add ninja debug flags for better diagnostics:
-            // d:explain = explain why ninja rebuilds
-            // v = verbose output
-            // d:stats = show build statistics
-            const buildCode = await execWithTimeout('npm', ['run', 'build', '--',
-                // '--ninja=d:explain',
-                // '--ninja=v', 
-                // '--ninja=d:stats'
-            ], {
+        
+            const buildCode = await execWithTimeout('npm', ['run', 'build'], {
                 cwd: braveDir,
                 timeoutSeconds: timeoutSeconds
             });
@@ -306,12 +299,16 @@ async function run() {
                 
                 // Wait for processes to finish cleanup (ninja may still be writing)
                 console.log('Waiting 30 seconds for build processes to finish cleanup...');
-                await new Promise(r => setTimeout(r, 30000));
+                await new Promise(r => setTimeout(r, 10000));
                 
                 // Force filesystem sync to ensure partial build state is saved
                 console.log('Syncing filesystem after timeout...');
                 await exec.exec('sync', [], {ignoreReturnCode: true});
+                await new Promise(r => setTimeout(r, 10000));
+
                 await exec.exec('sync', [], {ignoreReturnCode: true});
+                await new Promise(r => setTimeout(r, 10000));
+
                 
                 // Stay in build stage for next run
             } else {
@@ -383,8 +380,10 @@ async function run() {
         // Force filesystem sync to ensure all build data is written (like macOS does)
         console.log('Syncing filesystem to flush all writes...');
         await exec.exec('sync', [], {ignoreReturnCode: true});
+        await new Promise(r => setTimeout(r, 10000));
         console.log('Second sync for robustness...');
         await exec.exec('sync', [], {ignoreReturnCode: true});
+        await new Promise(r => setTimeout(r, 10000));
         
         // Clean up caches before archiving (like ungoogled-chromium does)
         // console.log('Cleaning up download caches to save disk space...');
