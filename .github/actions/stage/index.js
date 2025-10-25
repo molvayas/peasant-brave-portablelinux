@@ -153,7 +153,7 @@ async function run() {
             await io.rmRF(downloadPath);
 
             console.log('Installing build dependencies...');
-            await exec.exec('sudo', [path.join(workDir, 'build', 'install-build-deps.sh'), '--no-prompt']);
+            await exec.exec('sudo', [path.join(workDir, 'src', 'build', 'install-build-deps.sh'), '--no-prompt']);
 
             console.log('Installing npm dependencies...');
             await exec.exec('npm', ['ci'], {
