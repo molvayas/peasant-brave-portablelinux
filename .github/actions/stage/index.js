@@ -80,10 +80,6 @@ async function run() {
         console.log('Work directory already exists');
     }
 
-    // Install 7zip to match Windows behavior EXACTLY
-    console.log('Installing 7zip...');
-    await exec.exec('sudo', ['apt-get', 'install', '-y', 'p7zip-full'], {ignoreReturnCode: true});
-    
     // Free up disk space on GitHub Actions runner
     // Ubuntu runners have ~14GB free, but Brave needs ~100GB
     // Removing unused tools frees up ~25-30GB
@@ -149,10 +145,10 @@ async function run() {
             const artifactInfo = await artifact.getArtifact(artifactName);
             await artifact.downloadArtifact(artifactInfo.artifact.id, {path: downloadPath});
             
-            // Extract using 7zip (EXACTLY like Windows)
+            // Extract using tar with sudo to preserve ownership
             console.log('Extracting build state...');
-            await exec.exec('7z', ['x', path.join(downloadPath, 'build-state.zip'),
-                `-o${workDir}`, '-y']);
+            const archivePath = path.join(downloadPath, 'build-state.tar.zst');
+            await exec.exec('sudo', ['tar', '-xf', archivePath, '-C', workDir]);
             
             await io.rmRF(downloadPath);
         } catch (e) {
@@ -357,14 +353,22 @@ async function run() {
         
         await new Promise(r => setTimeout(r, 5000));
         
-        // Compress using 7zip (EXACTLY like Windows does)
-        const stateZip = path.join(workDir, 'build-state.zip');
+        // Clean up caches before archiving (like ungoogled-chromium does)
+        // console.log('Cleaning up download caches to save disk space...');
+        // await exec.exec('rm', ['-rf', 
+        //     path.join(srcDir, 'download_cache'),
+        //     path.join(srcDir, 'build', 'download_cache')
+        // ], {ignoreReturnCode: true});
         
-        console.log('Compressing build state...');
-        await exec.exec('7z', ['a', '-tzip', stateZip,
-            path.join(workDir, 'src'),
-            path.join(workDir, 'build-stage.txt'),
-            '-mx=3', '-mtc=on'], 
+        // // Archive using tar with POSIX format and atime preservation
+        const stateArchive = path.join(workDir, 'build-state.tar.zst');
+        
+        console.log('Archiving build state...');
+        await exec.exec('tar', ['caf', stateArchive,
+            '-H', 'posix',
+            '--atime-preserve',
+            '-C', workDir,
+            'src', 'build-stage.txt'], 
             {ignoreReturnCode: true});
 
         // Upload intermediate artifact
@@ -375,7 +379,7 @@ async function run() {
                 // ignored
             }
             try {
-                await artifact.uploadArtifact(artifactName, [stateZip], workDir, 
+                await artifact.uploadArtifact(artifactName, [stateArchive], workDir, 
                     {retentionDays: 1, compressionLevel: 0});
                 console.log('Successfully uploaded checkpoint artifact');
                 break;
