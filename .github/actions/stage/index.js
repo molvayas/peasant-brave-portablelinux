@@ -202,7 +202,7 @@ async function run() {
 
     let buildSuccess = false;
     const JOB_START_TIME = Date.now();
-    const MAX_JOB_TIME = 270 * 60 * 1000; // 4.5 hours in milliseconds
+    const MAX_JOB_TIME = 120 * 60 * 1000; // 4.5 hours in milliseconds
 
     try {
         // Stage 1: npm run init (downloads Chromium and dependencies)
@@ -252,7 +252,7 @@ async function run() {
             const elapsedTime = Date.now() - JOB_START_TIME;
             let remainingTime = MAX_JOB_TIME - elapsedTime;
             // TODO: temporary to test if builds are resumed correctly
-            remainingTime = 6*60*1000
+            // remainingTime = 6*60*1000
             
             console.log('=== Stage: npm run build ===');
             console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
