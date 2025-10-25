@@ -155,11 +155,11 @@ async function run() {
             console.log('Installing build dependencies...');
             await exec.exec('sudo', [path.join(workDir, 'src', 'build', 'install-build-deps.sh'), '--no-prompt']);
 
-            console.log('Installing npm dependencies...');
-            await exec.exec('npm', ['ci'], {
-                cwd: braveDir,
-                ignoreReturnCode: true
-            });
+            // console.log('Installing npm dependencies...');
+            // await exec.exec('npm', ['ci'], {
+            //     cwd: braveDir,
+            //     ignoreReturnCode: true
+            // });
         } catch (e) {
             console.error(`Failed to download artifact: ${e}`);
             throw e;
@@ -287,9 +287,10 @@ async function run() {
             // v = verbose output
             // d:stats = show build statistics
             const buildCode = await execWithTimeout('npm', ['run', 'build', '--',
-                '--ninja=d:explain',
-                '--ninja=v', 
-                '--ninja=d:stats'], {
+                // '--ninja=d:explain',
+                // '--ninja=v', 
+                // '--ninja=d:stats'
+            ], {
                 cwd: braveDir,
                 timeoutSeconds: timeoutSeconds
             });
