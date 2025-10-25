@@ -151,6 +151,15 @@ async function run() {
             await exec.exec('sudo', ['tar', '-xf', archivePath, '-C', workDir]);
             
             await io.rmRF(downloadPath);
+
+            console.log('Installing build dependencies...');
+            await exec.exec('sudo', [path.join(workDir, 'build', 'install-build-deps.sh'), '--no-prompt']);
+
+            console.log('Installing npm dependencies...');
+            await exec.exec('npm', ['ci'], {
+                cwd: braveDir,
+                ignoreReturnCode: true
+            });
         } catch (e) {
             console.error(`Failed to download artifact: ${e}`);
             throw e;
@@ -252,7 +261,7 @@ async function run() {
             const elapsedTime = Date.now() - JOB_START_TIME;
             let remainingTime = MAX_JOB_TIME - elapsedTime;
             // TODO: temporary to test if builds are resumed correctly
-            // remainingTime = 6*60*1000
+            remainingTime = 11*60*1000
             
             console.log('=== Stage: npm run build ===');
             console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
