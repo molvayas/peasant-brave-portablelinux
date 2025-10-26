@@ -43,6 +43,26 @@ async function execWithTimeout(command, args, options = {}) {
     return exitCode;
 }
 
+/**
+ * Run ncdu to analyze disk usage and export to JSON
+ */
+async function runNcduAnalysis(outputPath, targetDir = '/') {
+    console.log(`Running ncdu analysis on ${targetDir}...`);
+    console.log(`Output will be saved to: ${outputPath}`);
+    
+    const exitCode = await exec.exec('ncdu', ['-x', '-o', outputPath, targetDir], {
+        ignoreReturnCode: true
+    });
+    
+    if (exitCode === 0) {
+        console.log(`✓ ncdu analysis completed: ${outputPath}`);
+    } else {
+        console.log(`⚠️ ncdu analysis failed with code ${exitCode}`);
+    }
+    
+    return exitCode;
+}
+
 async function run() {
     process.on('SIGINT', function() {
     });
@@ -155,6 +175,10 @@ async function run() {
             
             await io.rmRF(downloadPath);
 
+            console.log('Installing ncdu for disk usage analysis...');
+            await exec.exec('sudo', ['apt-get', 'update'], {ignoreReturnCode: true});
+            await exec.exec('sudo', ['apt-get', 'install', '-y', 'ncdu'], {ignoreReturnCode: true});
+
             console.log('Installing build dependencies...');
             await exec.exec('sudo', [path.join(workDir, 'src', 'build', 'install-build-deps.sh'), '--no-prompt']);
 
@@ -181,7 +205,7 @@ async function run() {
         await exec.exec('sudo', ['apt-get', 'install', '-y', 
             'build-essential', 'git', 'python3', 'python3-pip', 
             'python-setuptools', 'python3-distutils', 'python-is-python3',
-            'curl', 'lsb-release', 'sudo', 'tzdata', 'wget'], {ignoreReturnCode: true});
+            'curl', 'lsb-release', 'sudo', 'tzdata', 'wget', 'ncdu'], {ignoreReturnCode: true});
 
         // Clone brave-core to src/brave (following official structure)
         // Brave uses tags with 'v' prefix (e.g., v1.85.74)
@@ -281,6 +305,20 @@ async function run() {
             
             const timeoutSeconds = Math.floor(remainingTime / 1000);
             console.log(`Final timeout: ${(timeoutSeconds / 60).toFixed(0)} minutes (${(timeoutSeconds / 3600).toFixed(2)} hours)`);
+            
+            // Run disk usage analysis BEFORE build
+            const ncduBeforePath = path.join(workDir, `ncdu-before-build-${Date.now()}.json`);
+            await runNcduAnalysis(ncduBeforePath, '/');
+            
+            // Upload pre-build disk analysis
+            try {
+                await artifact.uploadArtifact(`disk-usage-before-linux-${Date.now()}`, [ncduBeforePath], workDir, 
+                    {retentionDays: 7, compressionLevel: 0});
+                console.log('Uploaded pre-build disk analysis');
+            } catch (e) {
+                console.log(`Failed to upload pre-build analysis: ${e.message}`);
+            }
+            
             console.log('Running npm run build (component build)...');
             
         
@@ -288,6 +326,19 @@ async function run() {
                 cwd: braveDir,
                 timeoutSeconds: timeoutSeconds
             });
+            
+            // Run disk usage analysis AFTER build (regardless of success/timeout/failure)
+            const ncduAfterPath = path.join(workDir, `ncdu-after-build-${Date.now()}.json`);
+            await runNcduAnalysis(ncduAfterPath, '/');
+            
+            // Upload post-build disk analysis
+            try {
+                await artifact.uploadArtifact(`disk-usage-after-linux-${Date.now()}`, [ncduAfterPath], workDir, 
+                    {retentionDays: 7, compressionLevel: 0});
+                console.log('Uploaded post-build disk analysis');
+            } catch (e) {
+                console.log(`Failed to upload post-build analysis: ${e.message}`);
+            }
             
             if (buildCode === 0) {
                 console.log('✓ npm run build completed successfully');
