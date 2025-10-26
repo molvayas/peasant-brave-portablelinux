@@ -599,128 +599,175 @@ async function run() {
         //     path.join(srcDir, 'build', 'download_cache')
         // ], {ignoreReturnCode: true});
         
-        // Archive with streaming tar + split, monitoring and uploading volumes incrementally
-        // Strategy: tar streams → split creates volumes → monitor → upload → delete
-        // This keeps only one volume on disk at a time, maximizing space efficiency
+        // Controlled multi-volume archiving with split --filter
+        // Strategy: split calls our handler for EACH volume BEFORE creating the next one
+        // This ensures only ONE volume exists on disk at any time
         const volumePrefix = path.join(workDir, 'build-state.vol-');
         const volumeSizeBytes = 5 * 1024 * 1024 * 1024; // 5GB in bytes
         
-        console.log('🔄 Starting incremental multi-volume archiving (create → upload → delete → next)...');
+        console.log('🔄 Starting controlled multi-volume archiving...');
         console.log(`Volume size: 5GB`);
         console.log('Using zstd level 10 with all threads (-T0)');
-        console.log('Using --remove-files to free space during archiving\n');
+        console.log('Using --remove-files to free space during archiving');
+        console.log('Strategy: split creates volume → calls handler → handler uploads & deletes → split creates next\n');
         
-        // Start tar + split pipeline in background
-        // tar creates compressed stream, split divides into 5GB volumes
-        // We'll monitor the directory and upload/delete volumes as they're completed
-        const tarSplitCmd = `tar -cf - --remove-files --use-compress-program="zstd -10 -T0" -H posix --atime-preserve -C ${workDir} src build-stage.txt | split -b ${volumeSizeBytes} - ${volumePrefix}`;
+        // Create a handler script that split will call for each completed volume
+        // split --filter runs this script with the volume path in $FILE
+        // The script MUST complete before split creates the next volume
+        const handlerScript = path.join(workDir, 'volume-handler.sh');
+        const handlerContent = `#!/bin/bash
+set -e
+
+VOLUME_FILE="$FILE"
+VOLUME_NUM_FILE="${workDir}/.volume-counter"
+
+# Initialize counter if needed
+if [ ! -f "\${VOLUME_NUM_FILE}" ]; then
+    echo "0" > "\${VOLUME_NUM_FILE}"
+fi
+
+# Increment volume number
+VOLUME_NUM=\$(cat "\${VOLUME_NUM_FILE}")
+VOLUME_NUM=\$((VOLUME_NUM + 1))
+echo "\${VOLUME_NUM}" > "\${VOLUME_NUM_FILE}"
+
+# Get volume size
+SIZE_BYTES=\$(stat -f%z "\${VOLUME_FILE}" 2>/dev/null || stat -c%s "\${VOLUME_FILE}" 2>/dev/null)
+SIZE_GB=\$(echo "scale=2; \${SIZE_BYTES} / 1073741824" | bc)
+
+echo ""
+echo "📦 [Volume \${VOLUME_NUM}] \$(basename "\${VOLUME_FILE}") completed (\${SIZE_GB}GB)"
+echo "   Signaling for upload..."
+
+# Signal that volume is ready (Node.js will handle upload)
+echo "READY:\${VOLUME_FILE}:\${VOLUME_NUM}" >> "${workDir}/.volume-status"
+
+# Wait for Node.js to upload and delete the volume
+TIMEOUT=3600  # 1 hour timeout
+ELAPSED=0
+while [ -f "\${VOLUME_FILE}" ] && [ \${ELAPSED} -lt \${TIMEOUT} ]; do
+    sleep 5
+    ELAPSED=\$((ELAPSED + 5))
+done
+
+if [ -f "\${VOLUME_FILE}" ]; then
+    echo "   ⚠️ Timeout waiting for volume to be processed!"
+    exit 1
+fi
+
+echo "   ✓ Volume \${VOLUME_NUM} processed and removed"
+exit 0
+`;
         
-        console.log('Starting archive creation pipeline...\n');
+        await fs.writeFile(handlerScript, handlerContent, {mode: 0o755});
+        console.log('✓ Created volume handler script\n');
         
-        // Run tar+split process (don't await yet, we'll monitor in parallel)
-        let tarProcessComplete = false;
-        let tarExitCode = 0;
-        const tarProcess = exec.exec('bash', ['-c', tarSplitCmd], {
-            ignoreReturnCode: true
-        }).then(code => {
-            tarExitCode = code;
-            tarProcessComplete = true;
-            return code;
-        });
+        // Initialize volume counter
+        const counterFile = path.join(workDir, '.volume-counter');
+        const statusFile = path.join(workDir, '.volume-status');
+        await fs.writeFile(counterFile, '0');
+        await fs.writeFile(statusFile, '');
         
-        // Monitor and upload volumes as they're created
-        const uploadedVolumes = new Set();
+        // Start monitoring for volume completion signals
         let volumeNum = 0;
-        const volumeCheckInterval = 15000; // Check every 15 seconds
+        const processedVolumes = new Set();
         
-        // Wait a bit for first volume to start being created
-        await new Promise(r => setTimeout(r, 10000));
-        
-        console.log('Monitoring for completed volumes...\n');
-        
-        // Monitor loop: check for new volumes and upload them
-        while (!tarProcessComplete || uploadedVolumes.size < 100) { // Safety limit of 100 volumes
-            const globber = await glob.create(`${volumePrefix}*`);
-            const volumeFiles = (await globber.glob()).sort();
-            
-            for (const vol of volumeFiles) {
-                if (uploadedVolumes.has(vol)) continue;
+        const monitorInterval = setInterval(async () => {
+            try {
+                const status = await fs.readFile(statusFile, 'utf-8');
+                const lines = status.trim().split('\n').filter(l => l);
                 
-                // Check if this volume is complete (size stable for 5 seconds)
-                let size1, size2;
-                try {
-                    size1 = (await fs.stat(vol)).size;
-                    await new Promise(r => setTimeout(r, 5000));
-                    size2 = (await fs.stat(vol)).size;
-            } catch (e) {
-                    continue; // File might not exist yet or was just deleted
-                }
-                
-                // Volume is complete if size hasn't changed
-                if (size1 === size2 && size1 > 0) {
-                    volumeNum++;
-                    const volName = path.basename(vol);
-                    const sizeGB = (size1 / (1024 * 1024 * 1024)).toFixed(2);
+                for (const line of lines) {
+                    if (!line.startsWith('READY:')) continue;
                     
-                    console.log(`📦 [Volume ${volumeNum}] ${volName} completed (${sizeGB}GB)`);
-                    console.log(`   Uploading...`);
+                    const [, volPath, volNumStr] = line.split(':');
+                    if (processedVolumes.has(volPath)) continue;
                     
-                    // Upload this volume as separate artifact
-                    const volArtifactName = `${artifactName}-vol-${String(volumeNum).padStart(3, '0')}`;
+                    const volNum = parseInt(volNumStr);
+                    const volName = path.basename(volPath);
                     
-                    let uploaded = false;
-                    for (let attempt = 0; attempt < 3; attempt++) {
-                        try {
-                            await artifact.uploadArtifact(volArtifactName, [vol], workDir, 
+                    // Check if volume exists
+                    try {
+                        const stats = await fs.stat(volPath);
+                        const sizeGB = (stats.size / (1024 * 1024 * 1024)).toFixed(2);
+                        
+                        console.log(`   Uploading volume ${volNum} (${sizeGB}GB)...`);
+                        
+                        // Upload this volume
+                        const volArtifactName = `${artifactName}-vol-${String(volNum).padStart(3, '0')}`;
+                        
+                        let uploaded = false;
+                        for (let attempt = 0; attempt < 3; attempt++) {
+                            try {
+                                await artifact.uploadArtifact(volArtifactName, [volPath], workDir, 
                     {retentionDays: 1, compressionLevel: 0});
-                            console.log(`   ✓ Uploaded`);
-                            uploaded = true;
+                                console.log(`   ✓ Uploaded`);
+                                uploaded = true;
                 break;
-            } catch (e) {
-                            console.error(`   Upload attempt ${attempt + 1} failed: ${e.message}`);
-                            if (attempt < 2) {
-                                await new Promise(r => setTimeout(r, 5000));
+                            } catch (e) {
+                                console.error(`   Upload attempt ${attempt + 1} failed: ${e.message}`);
+                                if (attempt < 2) {
+                                    await new Promise(r => setTimeout(r, 5000));
+                                }
                             }
                         }
+                        
+                        if (!uploaded) {
+                            clearInterval(monitorInterval);
+                            throw new Error(`Failed to upload volume ${volNum} after 3 attempts`);
+                        }
+                        
+                        // Delete volume to signal handler script to continue
+                        console.log(`   Deleting volume ${volNum}...`);
+                        await fs.unlink(volPath);
+                        console.log(`   ✓ Deleted (split will now create next volume)\n`);
+                        
+                        processedVolumes.add(volPath);
+                        volumeNum = volNum;
+                        
+                    } catch (e) {
+                        // Volume might not exist yet or already deleted
+                        if (e.code !== 'ENOENT') {
+                            console.error(`   Error processing volume: ${e.message}`);
+                        }
                     }
-                    
-                    if (!uploaded) {
-                        throw new Error(`Failed to upload volume ${volumeNum} after 3 attempts`);
-                    }
-                    
-                    // Delete volume to free space
-                    console.log(`   Deleting to free space...`);
-                    await fs.unlink(vol);
-                    console.log(`   ✓ Volume ${volumeNum} removed\n`);
-                    
-                    uploadedVolumes.add(vol);
                 }
+            } catch (e) {
+                // Status file might not exist yet or be empty
             }
-            
-            // If tar is done and we've processed all volumes, exit loop
-            if (tarProcessComplete) {
-                // Do one final check after a delay
-                await new Promise(r => setTimeout(r, 10000));
-                const finalGlobber = await glob.create(`${volumePrefix}*`);
-                const finalVols = await finalGlobber.glob();
-                if (finalVols.every(v => uploadedVolumes.has(v))) {
-                    break;
-                }
-            }
-            
-            // Wait before next check
-            await new Promise(r => setTimeout(r, volumeCheckInterval));
-        }
+        }, 2000); // Check every 2 seconds
         
-        // Wait for tar process to finish if still running
-        await tarProcess;
+        // Create tar + split pipeline with --filter
+        // The filter script is called synchronously for each completed volume
+        // split will NOT create the next volume until the filter script completes
+        const tarSplitCmd = `tar -cf - --remove-files --use-compress-program="zstd -10 -T0" -H posix --atime-preserve -C ${workDir} src build-stage.txt | split -b ${volumeSizeBytes} --filter='FILE="$FILE" ${handlerScript}' - ${volumePrefix}`;
         
-        console.log(`\n✅ Multi-volume archive completed: ${volumeNum} volume(s) created and uploaded`);
+        console.log('Starting controlled archive pipeline...\n');
+        console.log('⚠️  Each volume will be uploaded and deleted BEFORE the next one is created\n');
+        
+        // Run tar+split process
+        const tarExitCode = await exec.exec('bash', ['-c', tarSplitCmd], {
+            ignoreReturnCode: true
+        });
+        
+        // Stop monitoring
+        clearInterval(monitorInterval);
+        
+        // Final processing of any remaining volumes
+        await new Promise(r => setTimeout(r, 5000));
+        
+        console.log(`\n✅ Archive pipeline completed (exit code: ${tarExitCode})`);
+        console.log(`   Total volumes: ${volumeNum}\n`);
         
         if (volumeNum === 0) {
             console.error('❌ No volumes were created!');
             throw new Error('Archive creation failed - no volumes generated');
         }
+        
+        // Clean up temporary files
+        await fs.unlink(counterFile).catch(() => {});
+        await fs.unlink(statusFile).catch(() => {});
+        await fs.unlink(handlerScript).catch(() => {});
         
         // Create a metadata file to track volume count
         const metadataFile = path.join(workDir, 'volume-metadata.json');
