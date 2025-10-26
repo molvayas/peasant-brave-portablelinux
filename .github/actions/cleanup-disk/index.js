@@ -19,7 +19,14 @@ async function run() {
             {path: '/usr/lib/google-cloud-sdk', name: 'Google Cloud SDK'},
             {path: '/usr/share/swift', name: 'Swift'},
             {path: '/opt/ghc', name: 'GHC (opt)'},
-            {path: '/opt/hostedtoolcache/CodeQL', name: 'CodeQL'}
+            {path: '/opt/hostedtoolcache', name: 'Hosted Tool Cache'},
+            {path: '/usr/local/julia', name: 'Julia'},
+            {path: '/opt/az', name: 'Azure CLI'},
+            {path: '/usr/local/share/powershell', name: 'PowerShell'},
+            {path: '/usr/local/share/chromium', name: 'Chromium'},
+            {path: '/opt/microsoft', name: 'Microsoft Edge/Chrome'},
+            {path: '/opt/google', name: 'Google Chrome'},
+            {path: '/usr/lib/firefox', name: 'Firefox'}
         ];
         
         for (const {path: dir, name} of cleanupDirs) {
@@ -38,12 +45,13 @@ async function run() {
             }
         }
         
-        // Prune Docker images
-        console.log('Pruning Docker images...');
+        // Prune Docker system
+        console.log('Pruning Docker system...');
         console.log('  Before:');
         await exec.exec('df', ['-h', buildDirLocation], {ignoreReturnCode: true});
         try {
-            await exec.exec('sudo', ['docker', 'image', 'prune', '--all', '--force'], {ignoreReturnCode: true});
+            await exec.exec('sudo', ['docker', 'system', 'prune', '--all', '--force'], {ignoreReturnCode: true});
+            await exec.exec('sudo', ['docker', 'builder', 'prune', '--all', '--force'], {ignoreReturnCode: true});
         } catch (e) {
             console.log('  Docker not available');
         }
