@@ -50,7 +50,15 @@ async function runNcduAnalysis(outputPath, targetDir = '/') {
     console.log(`Running ncdu analysis on ${targetDir}...`);
     console.log(`Output will be saved to: ${outputPath}`);
     
-    const exitCode = await exec.exec('ncdu', ['-x', '-o', outputPath, targetDir], {
+    // Verify ncdu is available
+    const whichCode = await exec.exec('bash', ['-c', 'which ncdu'], {ignoreReturnCode: true});
+    if (whichCode !== 0) {
+        console.log('⚠️ ncdu not found, attempting to install...');
+        await exec.exec('sudo', ['apt-get', 'update'], {ignoreReturnCode: true});
+        await exec.exec('sudo', ['apt-get', 'install', '-y', 'ncdu'], {ignoreReturnCode: true});
+    }
+    
+    const exitCode = await exec.exec('bash', ['-c', `ncdu -x -o "${outputPath}" "${targetDir}"`], {
         ignoreReturnCode: true
     });
     
