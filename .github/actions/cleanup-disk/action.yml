@@ -1,0 +1,5 @@
+name: 'Cleanup Disk'
+description: 'Free up disk space by removing unnecessary tools and packages'
+runs:
+  using: 'node20'
+  main: 'index.js'
