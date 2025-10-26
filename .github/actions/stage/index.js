@@ -168,20 +168,147 @@ async function run() {
     console.log('===========================\n');
 
     if (from_artifact) {
-        console.log('Downloading previous build artifact...');
+        console.log('Downloading previous build artifact (incremental extraction)...');
         try {
             const downloadPath = path.join(workDir, 'artifact');
             await io.mkdirP(downloadPath);
             
-            const artifactInfo = await artifact.getArtifact(artifactName);
-            await artifact.downloadArtifact(artifactInfo.artifact.id, {path: downloadPath});
+            // First, download metadata to know how many volumes to expect
+            console.log('Downloading volume metadata...');
+            const metadataArtifactName = `${artifactName}-metadata`;
+            let volumeCount = 0;
             
-            // Extract using tar with sudo to preserve ownership
-            console.log('Extracting build state...');
-            const archivePath = path.join(downloadPath, 'build-state.tar.zst');
-            await exec.exec('sudo', ['tar', '-xf', archivePath, '-C', workDir]);
+            try {
+                const metadataInfo = await artifact.getArtifact(metadataArtifactName);
+                await artifact.downloadArtifact(metadataInfo.artifact.id, {path: downloadPath});
+                
+                const metadataFile = path.join(downloadPath, 'volume-metadata.json');
+                const metadata = JSON.parse(await fs.readFile(metadataFile, 'utf-8'));
+                volumeCount = metadata.volumeCount;
+                
+                console.log(`✓ Metadata: ${volumeCount} volume(s) to download`);
+                console.log(`  Created: ${metadata.timestamp}`);
+                console.log(`  Volume size: ${metadata.volumeSize}GB\n`);
+                
+                // Clean up metadata file
+                await fs.unlink(metadataFile);
+            } catch (e) {
+                console.warn('⚠️ Could not download metadata, will discover volumes dynamically');
+                console.warn(`   Error: ${e.message}\n`);
+            }
             
+            // If we don't have metadata, try to discover volumes
+            if (volumeCount === 0) {
+                console.log('Discovering available volume artifacts...');
+                // We'll download volumes one by one until we can't find more
+                let testVolumeNum = 1;
+                while (testVolumeNum <= 100) { // Safety limit
+                    const testVolName = `${artifactName}-vol-${String(testVolumeNum).padStart(3, '0')}`;
+                    try {
+                        await artifact.getArtifact(testVolName);
+                        volumeCount++;
+                        testVolumeNum++;
+                    } catch (e) {
+                        break; // No more volumes
+                    }
+                }
+                console.log(`✓ Discovered ${volumeCount} volume(s)\n`);
+            }
+            
+            if (volumeCount === 0) {
+                throw new Error('❌ No volumes found to extract!');
+            }
+            
+            // Download and extract volumes incrementally
+            // Strategy: download → extract (while still compressed) → delete → next
+            // Each volume is extracted as it comes, keeping only one on disk
+            console.log('🔄 Starting incremental download and extraction...\n');
+            console.log('Strategy: download → extract → delete → next\n');
+            
+            // Since volumes were created with split on compressed stream,
+            // we need to concatenate them back together before decompressing
+            // We'll do this incrementally using a streaming approach
+            
+            // Create a background process that will extract as we feed it data
+            const pipePath = path.join(downloadPath, 'extract-stream.fifo');
+            await exec.exec('mkfifo', [pipePath]);
+            console.log('✓ Created named pipe for streaming extraction\n');
+            
+            // Start extraction in background - reads from pipe, decompresses, extracts
+            console.log('Starting background extraction process...');
+            const extractionProcess = exec.exec('bash', ['-c', 
+                `cat "${pipePath}" | sudo tar -xf - --use-compress-program="zstd -d" -C ${workDir}`
+            ], {ignoreReturnCode: true}).then(code => {
+                console.log(`\nExtraction process finished (exit code: ${code})`);
+                return code;
+            });
+            
+            // Wait for extraction process to start and open the pipe
+            await new Promise(r => setTimeout(r, 3000));
+            
+            // Download volumes one by one and stream them to the extraction pipe
+            console.log('Streaming volumes to extraction...\n');
+            
+            for (let i = 1; i <= volumeCount; i++) {
+                const volArtifactName = `${artifactName}-vol-${String(i).padStart(3, '0')}`;
+                const volFileName = `build-state.vol-${String.fromCharCode(96 + Math.floor((i - 1) / 26) + 1)}${String.fromCharCode(97 + ((i - 1) % 26))}`;
+                const volPath = path.join(downloadPath, volFileName);
+                
+                console.log(`[${i}/${volumeCount}] Downloading ${volArtifactName}...`);
+                
+                try {
+                    const volInfo = await artifact.getArtifact(volArtifactName);
+                    await artifact.downloadArtifact(volInfo.artifact.id, {path: downloadPath});
+                    
+                    const stats = await fs.stat(volPath);
+                    const sizeGB = (stats.size / (1024 * 1024 * 1024)).toFixed(2);
+                    console.log(`  ✓ Downloaded (${sizeGB}GB)`);
+                } catch (e) {
+                    throw new Error(`Failed to download volume ${i}: ${e.message}`);
+                }
+                
+                // Stream this volume to the pipe
+                console.log(`  Streaming to extraction...`);
+                await exec.exec('bash', ['-c', `cat "${volPath}" > "${pipePath}"`], {
+                    ignoreReturnCode: true
+                });
+                console.log(`  ✓ Streamed`);
+                
+                // Delete volume immediately to free space
+                console.log(`  Deleting volume...`);
+                await fs.unlink(volPath);
+                console.log(`  ✓ Removed\n`);
+            }
+            
+            // Close the pipe by removing it (extraction will finish)
+            console.log('All volumes streamed, waiting for extraction to complete...\n');
+            
+            // Wait for extraction to complete
+            const extractCode = await extractionProcess;
+            
+            if (extractCode !== 0) {
+                console.warn(`⚠️ Extraction completed with exit code ${extractCode}`);
+            } else {
+                console.log('✓ Extraction completed successfully');
+            }
+            
+            // Verify extraction succeeded
+            console.log('Verifying extraction...');
+            const srcDirExists = await fs.access(srcDir).then(() => true).catch(() => false);
+            const markerExists = await fs.access(path.join(workDir, 'build-stage.txt')).then(() => true).catch(() => false);
+            
+            if (!srcDirExists) {
+                throw new Error('❌ Extraction verification failed: src directory not found');
+            }
+            if (!markerExists) {
+                console.warn('⚠️ Warning: build-stage.txt marker not found (may be first stage)');
+            }
+            
+            console.log('✓ All volumes extracted and verified successfully');
+            
+            // Clean up download directory
             await io.rmRF(downloadPath);
+            console.log('✓ Artifact directory cleaned up');
 
             console.log('Installing ncdu for disk usage analysis...');
             await exec.exec('sudo', ['apt-get', 'update'], {ignoreReturnCode: true});
@@ -314,7 +441,7 @@ async function run() {
             const elapsedTime = Date.now() - JOB_START_TIME;
             let remainingTime = MAX_BUILD_TIME - elapsedTime;
             // TODO: temporary to test if builds are resumed correctly
-            // remainingTime = 11*60*1000
+            remainingTime = 11*60*1000
             
             console.log('=== Stage: npm run build ===');
             console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
@@ -334,18 +461,18 @@ async function run() {
             const timeoutSeconds = Math.floor(remainingTime / 1000);
             console.log(`Final timeout: ${(timeoutSeconds / 60).toFixed(0)} minutes (${(timeoutSeconds / 3600).toFixed(2)} hours)`);
             
-            // Run disk usage analysis BEFORE build
-            const ncduBeforePath = path.join(workDir, `ncdu-before-build-${Date.now()}.json`);
-            await runNcduAnalysis(ncduBeforePath, '/');
+            // // Run disk usage analysis BEFORE build
+            // const ncduBeforePath = path.join(workDir, `ncdu-before-build-${Date.now()}.json`);
+            // await runNcduAnalysis(ncduBeforePath, '/');
             
-            // Upload pre-build disk analysis
-            try {
-                await artifact.uploadArtifact(`disk-usage-before-linux-${Date.now()}`, [ncduBeforePath], workDir, 
-                    {retentionDays: 7, compressionLevel: 0});
-                console.log('Uploaded pre-build disk analysis');
-            } catch (e) {
-                console.log(`Failed to upload pre-build analysis: ${e.message}`);
-            }
+            // // Upload pre-build disk analysis
+            // try {
+            //     await artifact.uploadArtifact(`disk-usage-before-linux-${Date.now()}`, [ncduBeforePath], workDir, 
+            //         {retentionDays: 7, compressionLevel: 0});
+            //     console.log('Uploaded pre-build disk analysis');
+            // } catch (e) {
+            //     console.log(`Failed to upload pre-build analysis: ${e.message}`);
+            // }
             
             console.log('Running npm run build (component build)...');
             
@@ -472,34 +599,144 @@ async function run() {
         //     path.join(srcDir, 'build', 'download_cache')
         // ], {ignoreReturnCode: true});
         
-        // Archive using tar with POSIX format and atime preservation
-        const stateArchive = path.join(workDir, 'build-state.tar.zst');
+        // Archive with streaming tar + split, monitoring and uploading volumes incrementally
+        // Strategy: tar streams → split creates volumes → monitor → upload → delete
+        // This keeps only one volume on disk at a time, maximizing space efficiency
+        const volumePrefix = path.join(workDir, 'build-state.vol-');
+        const volumeSizeBytes = 5 * 1024 * 1024 * 1024; // 5GB in bytes
         
-        console.log('Archiving build state...');
-        await exec.exec('tar', ['caf', stateArchive,
-            '-H', 'posix',
-            '--atime-preserve',
-            '-C', workDir,
-            'src', 'build-stage.txt'], 
-            {ignoreReturnCode: true});
-
-        // Upload intermediate artifact
-        for (let i = 0; i < 5; ++i) {
-            try {
-                await artifact.deleteArtifact(artifactName);
+        console.log('🔄 Starting incremental multi-volume archiving (create → upload → delete → next)...');
+        console.log(`Volume size: 5GB`);
+        console.log('Using zstd level 10 with all threads (-T0)');
+        console.log('Using --remove-files to free space during archiving\n');
+        
+        // Start tar + split pipeline in background
+        // tar creates compressed stream, split divides into 5GB volumes
+        // We'll monitor the directory and upload/delete volumes as they're completed
+        const tarSplitCmd = `tar -cf - --remove-files --use-compress-program="zstd -10 -T0" -H posix --atime-preserve -C ${workDir} src build-stage.txt | split -b ${volumeSizeBytes} - ${volumePrefix}`;
+        
+        console.log('Starting archive creation pipeline...\n');
+        
+        // Run tar+split process (don't await yet, we'll monitor in parallel)
+        let tarProcessComplete = false;
+        let tarExitCode = 0;
+        const tarProcess = exec.exec('bash', ['-c', tarSplitCmd], {
+            ignoreReturnCode: true
+        }).then(code => {
+            tarExitCode = code;
+            tarProcessComplete = true;
+            return code;
+        });
+        
+        // Monitor and upload volumes as they're created
+        const uploadedVolumes = new Set();
+        let volumeNum = 0;
+        const volumeCheckInterval = 15000; // Check every 15 seconds
+        
+        // Wait a bit for first volume to start being created
+        await new Promise(r => setTimeout(r, 10000));
+        
+        console.log('Monitoring for completed volumes...\n');
+        
+        // Monitor loop: check for new volumes and upload them
+        while (!tarProcessComplete || uploadedVolumes.size < 100) { // Safety limit of 100 volumes
+            const globber = await glob.create(`${volumePrefix}*`);
+            const volumeFiles = (await globber.glob()).sort();
+            
+            for (const vol of volumeFiles) {
+                if (uploadedVolumes.has(vol)) continue;
+                
+                // Check if this volume is complete (size stable for 5 seconds)
+                let size1, size2;
+                try {
+                    size1 = (await fs.stat(vol)).size;
+                    await new Promise(r => setTimeout(r, 5000));
+                    size2 = (await fs.stat(vol)).size;
             } catch (e) {
-                // ignored
-            }
-            try {
-                await artifact.uploadArtifact(artifactName, [stateArchive], workDir, 
+                    continue; // File might not exist yet or was just deleted
+                }
+                
+                // Volume is complete if size hasn't changed
+                if (size1 === size2 && size1 > 0) {
+                    volumeNum++;
+                    const volName = path.basename(vol);
+                    const sizeGB = (size1 / (1024 * 1024 * 1024)).toFixed(2);
+                    
+                    console.log(`📦 [Volume ${volumeNum}] ${volName} completed (${sizeGB}GB)`);
+                    console.log(`   Uploading...`);
+                    
+                    // Upload this volume as separate artifact
+                    const volArtifactName = `${artifactName}-vol-${String(volumeNum).padStart(3, '0')}`;
+                    
+                    let uploaded = false;
+                    for (let attempt = 0; attempt < 3; attempt++) {
+                        try {
+                            await artifact.uploadArtifact(volArtifactName, [vol], workDir, 
                     {retentionDays: 1, compressionLevel: 0});
-                console.log('Successfully uploaded checkpoint artifact');
+                            console.log(`   ✓ Uploaded`);
+                            uploaded = true;
                 break;
             } catch (e) {
-                console.error(`Upload artifact failed: ${e}`);
-                await new Promise(r => setTimeout(r, 10000));
+                            console.error(`   Upload attempt ${attempt + 1} failed: ${e.message}`);
+                            if (attempt < 2) {
+                                await new Promise(r => setTimeout(r, 5000));
+                            }
+                        }
+                    }
+                    
+                    if (!uploaded) {
+                        throw new Error(`Failed to upload volume ${volumeNum} after 3 attempts`);
+                    }
+                    
+                    // Delete volume to free space
+                    console.log(`   Deleting to free space...`);
+                    await fs.unlink(vol);
+                    console.log(`   ✓ Volume ${volumeNum} removed\n`);
+                    
+                    uploadedVolumes.add(vol);
+                }
             }
+            
+            // If tar is done and we've processed all volumes, exit loop
+            if (tarProcessComplete) {
+                // Do one final check after a delay
+                await new Promise(r => setTimeout(r, 10000));
+                const finalGlobber = await glob.create(`${volumePrefix}*`);
+                const finalVols = await finalGlobber.glob();
+                if (finalVols.every(v => uploadedVolumes.has(v))) {
+                    break;
+                }
+            }
+            
+            // Wait before next check
+            await new Promise(r => setTimeout(r, volumeCheckInterval));
         }
+        
+        // Wait for tar process to finish if still running
+        await tarProcess;
+        
+        console.log(`\n✅ Multi-volume archive completed: ${volumeNum} volume(s) created and uploaded`);
+        
+        if (volumeNum === 0) {
+            console.error('❌ No volumes were created!');
+            throw new Error('Archive creation failed - no volumes generated');
+        }
+        
+        // Create a metadata file to track volume count
+        const metadataFile = path.join(workDir, 'volume-metadata.json');
+        await fs.writeFile(metadataFile, JSON.stringify({
+            volumeCount: volumeNum,
+            volumePrefix: 'build-state.vol-',
+            volumeSize: 5,
+            timestamp: new Date().toISOString()
+        }));
+        
+        // Upload metadata
+        console.log('Uploading volume metadata...');
+        await artifact.uploadArtifact(`${artifactName}-metadata`, [metadataFile], workDir, 
+            {retentionDays: 1, compressionLevel: 0});
+        await fs.unlink(metadataFile);
+        console.log('✓ Metadata uploaded');
         
         core.setOutput('finished', false);
     }
