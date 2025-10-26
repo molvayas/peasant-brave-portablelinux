@@ -394,11 +394,13 @@ async function run() {
             const testHandlerScript = path.join(workDir, 'test-volume-handler.sh');
             const testHandlerContent = `#!/bin/bash
 # Test handler script
+# split --filter pipes data to stdin, we need to write it to the actual file
 
 VOLUME_FILE="\$FILE"
 VOLUME_NUM_FILE="${workDir}/.test-volume-counter"
 STATUS_FILE="${workDir}/.test-volume-status"
 
+# Initialize counter
 if [ ! -f "\${VOLUME_NUM_FILE}" ]; then
     echo "0" > "\${VOLUME_NUM_FILE}"
 fi
@@ -407,6 +409,14 @@ VOLUME_NUM=\$(cat "\${VOLUME_NUM_FILE}")
 VOLUME_NUM=\$((VOLUME_NUM + 1))
 echo "\${VOLUME_NUM}" > "\${VOLUME_NUM_FILE}"
 
+echo ""
+echo "📦 [TEST Volume \${VOLUME_NUM}] Writing \$(basename "\${VOLUME_FILE}") from stdin..."
+
+# CRITICAL: Read from stdin and write to the actual file
+# split --filter sends data to stdin, not to a file!
+cat > "\${VOLUME_FILE}"
+
+# Get the size of what we just wrote
 if SIZE_BYTES=\$(stat -c%s "\${VOLUME_FILE}" 2>/dev/null); then
     :
 elif SIZE_BYTES=\$(stat -f%z "\${VOLUME_FILE}" 2>/dev/null); then
@@ -417,15 +427,14 @@ fi
 
 SIZE_MB=\$(echo "\${SIZE_BYTES}" | awk '{printf "%.2f", \$1/1048576}')
 
-echo ""
-echo "📦 [TEST Volume \${VOLUME_NUM}] \$(basename "\${VOLUME_FILE}") completed (\${SIZE_MB}MB)"
+echo "   Volume written: \${SIZE_MB}MB"
 echo "   Signaling for upload..."
 
 echo "READY:\${VOLUME_FILE}:\${VOLUME_NUM}" >> "\${STATUS_FILE}"
 
 TIMEOUT=3600
 ELAPSED=0
-echo "   Waiting for upload and deletion..."
+echo "   Waiting for Node.js to upload and delete..."
 
 while [ -f "\${VOLUME_FILE}" ] && [ \${ELAPSED} -lt \${TIMEOUT} ]; do
     sleep 5
@@ -437,11 +446,11 @@ while [ -f "\${VOLUME_FILE}" ] && [ \${ELAPSED} -lt \${TIMEOUT} ]; do
 done
 
 if [ -f "\${VOLUME_FILE}" ]; then
-    echo "   ⚠️ Timeout waiting for volume!"
+    echo "   ⚠️ Timeout waiting for volume to be deleted!"
     exit 1
 fi
 
-echo "   ✓ Test volume \${VOLUME_NUM} processed and removed"
+echo "   ✓ Test volume \${VOLUME_NUM} uploaded and removed by Node.js"
 exit 0
 `;
             
@@ -763,7 +772,7 @@ exit 0
         const handlerScript = path.join(workDir, 'volume-handler.sh');
         const handlerContent = `#!/bin/bash
 # Handler script called by split for each completed volume
-# Don't use 'set -e' here as we want to handle errors gracefully
+# split --filter pipes data to stdin, we must write it to the actual file
 
 VOLUME_FILE="\$FILE"
 VOLUME_NUM_FILE="${workDir}/.volume-counter"
@@ -778,6 +787,13 @@ fi
 VOLUME_NUM=\$(cat "\${VOLUME_NUM_FILE}")
 VOLUME_NUM=\$((VOLUME_NUM + 1))
 echo "\${VOLUME_NUM}" > "\${VOLUME_NUM_FILE}"
+
+echo ""
+echo "📦 [Volume \${VOLUME_NUM}] Writing \$(basename "\${VOLUME_FILE}") from stdin..."
+
+# CRITICAL: Read from stdin and write to the actual file
+# split --filter sends data to stdin, not to a file!
+cat > "\${VOLUME_FILE}"
 
 # Get volume size (try both Linux and macOS stat formats)
 if SIZE_BYTES=\$(stat -c%s "\${VOLUME_FILE}" 2>/dev/null); then
@@ -794,9 +810,7 @@ fi
 # Calculate size in GB (without bc - using awk instead)
 SIZE_GB=\$(echo "\${SIZE_BYTES}" | awk '{printf "%.2f", \$1/1073741824}')
 
-echo ""
-echo "📦 [Volume \${VOLUME_NUM}] \$(basename "\${VOLUME_FILE}") completed (\${SIZE_GB}GB)"
-echo "   Volume path: \${VOLUME_FILE}"
+echo "   Volume written: \${SIZE_GB}GB"
 echo "   Signaling Node.js for upload..."
 
 # Signal that volume is ready (Node.js will handle upload)
@@ -805,7 +819,7 @@ echo "READY:\${VOLUME_FILE}:\${VOLUME_NUM}" >> "\${STATUS_FILE}"
 # Wait for Node.js to upload and delete the volume
 TIMEOUT=3600  # 1 hour timeout
 ELAPSED=0
-echo "   Waiting for upload and deletion..."
+echo "   Waiting for Node.js to upload and delete..."
 
 while [ -f "\${VOLUME_FILE}" ] && [ \${ELAPSED} -lt \${TIMEOUT} ]; do
     sleep 5
@@ -823,7 +837,7 @@ if [ -f "\${VOLUME_FILE}" ]; then
     exit 1
 fi
 
-echo "   ✓ Volume \${VOLUME_NUM} processed and removed"
+echo "   ✓ Volume \${VOLUME_NUM} uploaded and removed by Node.js"
 exit 0
 `;
         
