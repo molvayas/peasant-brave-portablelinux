@@ -272,6 +272,26 @@ async function run() {
                     });
                 }
                 
+                // Clean up unnecessary directories to free disk space
+                console.log('\n=== Cleaning up unnecessary directories ===');
+                const cleanupDirs = [
+                    path.join(srcDir, 'ios'),
+                    path.join(srcDir, 'third_party', 'jdk')
+                ];
+                
+                for (const dir of cleanupDirs) {
+                    console.log(`Removing ${dir}...`);
+                    await exec.exec('rm', ['-rf', dir], {ignoreReturnCode: true});
+                }
+                
+                // Remove android_* directories using shell glob
+                console.log(`Removing ${path.join(srcDir, 'third_party', 'android_*')}...`);
+                await exec.exec('bash', ['-c', `rm -rf ${path.join(srcDir, 'third_party', 'android_*')}`], {ignoreReturnCode: true});
+                
+                console.log('Checking disk space after cleanup:');
+                await exec.exec('df', ['-h', '/home/runner'], {ignoreReturnCode: true});
+                console.log('===========================================\n');
+                
                 await fs.writeFile(markerFile, 'build');
                 currentStage = 'build';
             } else {
