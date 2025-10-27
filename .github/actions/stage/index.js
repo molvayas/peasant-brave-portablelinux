@@ -138,20 +138,28 @@ echo "[Volume Script] TAR_FD: \$TAR_FD" >&2
 echo "[Volume Script] ============================================" >&2
 
 # Determine which volume to process and what to return
+# Note: tar uses the base name for the first volume, then adds suffixes
+# Volume 1: build-state.tar (base name)
+# Volume 2: build-state.tar-2
+# Volume 3: build-state.tar-3
+# etc.
+
 if [ -z "\$TAR_VOLUME" ]; then
-    # First call - tar hasn't started yet, just tell it the name for the first volume
-    NEXT_ARCHIVE="\${TAR_ARCHIVE}-1"
-    echo "[Volume Script] First call - first volume will be: \$NEXT_ARCHIVE" >&2
+    # First call - tar hasn't started yet
+    # Return base name (tar will use this as-is for volume 1)
+    NEXT_ARCHIVE="\${TAR_ARCHIVE}"
+    echo "[Volume Script] First call - volume 1 will use base name: \$NEXT_ARCHIVE" >&2
 else
     # TAR_VOLUME=N means tar is about to start volume N
     # So we need to process volume N-1 (the one that just completed)
     COMPLETED_VOLUME_NUM=\$((TAR_VOLUME - 1))
     
-    if [ \$COMPLETED_VOLUME_NUM -eq 0 ]; then
-        # The initial volume (no suffix) just completed
+    # Volume naming: first volume uses base name, subsequent volumes get suffixes
+    if [ \$COMPLETED_VOLUME_NUM -eq 1 ]; then
+        # Volume 1 uses the base name (no suffix)
         COMPLETED_VOLUME="\${TAR_ARCHIVE}"
     else
-        # A numbered volume just completed
+        # Volume 2+ use TAR_ARCHIVE-N format
         COMPLETED_VOLUME="\${TAR_ARCHIVE}-\${COMPLETED_VOLUME_NUM}"
     fi
     
@@ -196,7 +204,7 @@ else
     echo "\${COMPLETED_VOLUME}" >> "${processedVolumesFile}"
     
     # Generate next volume name
-    # tar will create volume TAR_VOLUME, so tell it the name for that
+    # tar will create volume TAR_VOLUME with suffix
     NEXT_ARCHIVE="\${TAR_ARCHIVE}-\${TAR_VOLUME}"
     echo "[Volume Script] Next volume (volume \${TAR_VOLUME}) will be: \$NEXT_ARCHIVE" >&2
 fi
