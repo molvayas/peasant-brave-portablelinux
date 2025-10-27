@@ -92,7 +92,6 @@ async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifac
     console.log(`Working directory: ${workDir}`);
     console.log(`Paths to archive: ${paths.join(', ')}`);
     
-    // Use 5GB volumes (in 512-byte blocks: 5*1024*1024*1024/512 = 10485760)
     const volumeSizeBlocks = '10485760';
     const tempDir = path.join(workDir, 'tar-temp');
     await io.mkdirP(tempDir);
@@ -109,7 +108,6 @@ async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifac
     }
     
     console.log('\nStarting multi-volume tar creation...');
-    console.log(`Volume size: 5GB (${volumeSizeBlocks} blocks of 512 bytes)`);
     console.log(`Archive base: ${tarArchivePath}`);
     console.log(`Temp directory: ${tempDir}`);
     console.log('Files will be removed as they are archived to save disk space\n');
@@ -292,7 +290,7 @@ uploadVolume(filePath, artifactName).then(code => process.exit(code)).catch(e =>
         '-f', tarArchivePath,
         '-H', 'posix',
         '--atime-preserve',
-        '--remove-files',  // Delete files after adding to archive
+        // '--remove-files',  // Delete files after adding to archive
         '-C', workDir,
         ...paths
     ].join(' '));
@@ -304,7 +302,7 @@ uploadVolume(filePath, artifactName).then(code => process.exit(code)).catch(e =>
         '-f', tarArchivePath,
         '-H', 'posix',
         '--atime-preserve',
-        '--remove-files',  // Delete files after adding to archive
+        // '--remove-files',  // Delete files after adding to archive
         '-C', workDir,
         ...paths
     ], {
@@ -350,8 +348,7 @@ uploadVolume(filePath, artifactName).then(code => process.exit(code)).catch(e =>
         baseName: archiveBaseName,
         volumeCount: volumeCount,
         volumes: uploadedVolumes,
-        timestamp: new Date().toISOString(),
-        volumeSize: '5GB'
+        timestamp: new Date().toISOString()
     };
     
     const manifestPath = path.join(tempDir, 'archive-manifest.json');
@@ -401,7 +398,6 @@ async function extractMultiVolumeArchive(workDir, artifact, artifactName) {
     console.log(`\nManifest loaded:`);
     console.log(`  Base name: ${manifest.baseName}`);
     console.log(`  Total volumes: ${manifest.volumeCount}`);
-    console.log(`  Volume size: ${manifest.volumeSize}`);
     console.log(`  Created: ${manifest.timestamp}`);
     
     // Create a Node.js helper script for downloading/decompressing volumes on demand
