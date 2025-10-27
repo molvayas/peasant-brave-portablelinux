@@ -144,10 +144,17 @@ echo "[Volume Script] ============================================" >&2
 # Volume 3: build-state.tar-3
 # etc.
 
+# IMPORTANT: TAR_ARCHIVE changes with each call!
+# On first call: TAR_ARCHIVE = "build-state.tar"
+# On second call: TAR_ARCHIVE = "build-state.tar-2" (the name we returned!)
+# So we need to extract the base name by stripping any -N suffix
+BASE_ARCHIVE=\$(echo "\$TAR_ARCHIVE" | sed 's/-[0-9]*$//')
+echo "[Volume Script] Base archive name: \$BASE_ARCHIVE" >&2
+
 if [ -z "\$TAR_VOLUME" ]; then
     # First call - tar hasn't started yet
     # Return base name (tar will use this as-is for volume 1)
-    NEXT_ARCHIVE="\${TAR_ARCHIVE}"
+    NEXT_ARCHIVE="\${BASE_ARCHIVE}"
     echo "[Volume Script] First call - volume 1 will use base name: \$NEXT_ARCHIVE" >&2
 else
     # TAR_VOLUME=N means tar is about to start volume N
@@ -157,10 +164,10 @@ else
     # Volume naming: first volume uses base name, subsequent volumes get suffixes
     if [ \$COMPLETED_VOLUME_NUM -eq 1 ]; then
         # Volume 1 uses the base name (no suffix)
-        COMPLETED_VOLUME="\${TAR_ARCHIVE}"
+        COMPLETED_VOLUME="\${BASE_ARCHIVE}"
     else
-        # Volume 2+ use TAR_ARCHIVE-N format
-        COMPLETED_VOLUME="\${TAR_ARCHIVE}-\${COMPLETED_VOLUME_NUM}"
+        # Volume 2+ use BASE_ARCHIVE-N format (always use BASE, not TAR_ARCHIVE!)
+        COMPLETED_VOLUME="\${BASE_ARCHIVE}-\${COMPLETED_VOLUME_NUM}"
     fi
     
     echo "[Volume Script] Processing completed volume \${COMPLETED_VOLUME_NUM}: \${COMPLETED_VOLUME}" >&2
@@ -188,8 +195,12 @@ else
     # Upload using Node.js script
     echo "[Volume Script] Uploading volume \${COMPLETED_VOLUME_NUM}..." >&2
     VOLUME_NUM=\$(printf "%03d" \$COMPLETED_VOLUME_NUM)
+    
+    # Run upload and capture exit code properly
+    set +e  # Temporarily disable exit on error to capture exit code
     node "${tempDir}/upload-volume.js" "\$COMPRESSED" "${artifactName}-vol\${VOLUME_NUM}" 2>&1 | sed 's/^/[upload] /' >&2
-    UPLOAD_EXIT=\$?
+    UPLOAD_EXIT=\${PIPESTATUS[0]}  # Get exit code of node, not sed
+    set -e  # Re-enable exit on error
     
     if [ \$UPLOAD_EXIT -ne 0 ]; then
         echo "[Volume Script] ERROR: Upload failed with exit code \$UPLOAD_EXIT" >&2
@@ -203,9 +214,9 @@ else
     # Track processed volume
     echo "\${COMPLETED_VOLUME}" >> "${processedVolumesFile}"
     
-    # Generate next volume name
+    # Generate next volume name (always use BASE_ARCHIVE!)
     # tar will create volume TAR_VOLUME with suffix
-    NEXT_ARCHIVE="\${TAR_ARCHIVE}-\${TAR_VOLUME}"
+    NEXT_ARCHIVE="\${BASE_ARCHIVE}-\${TAR_VOLUME}"
     echo "[Volume Script] Next volume (volume \${TAR_VOLUME}) will be: \$NEXT_ARCHIVE" >&2
 fi
 
@@ -220,6 +231,13 @@ exit 0
     
     await fs.writeFile(volumeScriptPath, volumeScript);
     await exec.exec('chmod', ['+x', volumeScriptPath]);
+    
+    // Install @actions/artifact in temp directory for the upload script
+    console.log('Installing @actions/artifact in temp directory...');
+    await exec.exec('npm', ['install', '@actions/artifact@2.2.1'], {
+        cwd: tempDir,
+        ignoreReturnCode: true
+    });
     
     // Create Node.js upload helper script
     const uploadScriptPath = path.join(tempDir, 'upload-volume.js');
