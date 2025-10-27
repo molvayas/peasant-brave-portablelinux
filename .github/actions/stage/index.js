@@ -468,7 +468,7 @@ async function run() {
             // Install zstd for decompression (needed before extraction)
             console.log('Installing zstd for decompression...');
             await exec.exec('sudo', ['apt-get', 'update'], {ignoreReturnCode: true});
-            await exec.exec('sudo', ['apt-get', 'install', '-y', 'zstd', 'ncdu'], {ignoreReturnCode: true});
+            await exec.exec('sudo', ['apt-get', 'install', '-y', 'ncdu'], {ignoreReturnCode: true});
             
             // Extract multi-volume archive
             await extractMultiVolumeArchive(workDir, artifact, artifactName);
@@ -499,7 +499,7 @@ async function run() {
         await exec.exec('sudo', ['apt-get', 'install', '-y', 
             'build-essential', 'git', 'python3', 'python3-pip', 
             'python-setuptools', 'python3-distutils', 'python-is-python3',
-            'curl', 'lsb-release', 'sudo', 'tzdata', 'wget', 'ncdu', 'zstd'], {ignoreReturnCode: true});
+            'curl', 'lsb-release', 'sudo', 'tzdata', 'wget', 'ncdu'], {ignoreReturnCode: true});
 
         // Clone brave-core to src/brave (following official structure)
         // Brave uses tags with 'v' prefix (e.g., v1.85.74)
