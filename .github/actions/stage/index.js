@@ -468,10 +468,29 @@ downloadAndDecompress(volumeNum, artifactName, outputPath)
         ignoreReturnCode: true
     });
     
+    // Capture environment variables needed by @actions/artifact
+    const actionsEnv = {
+        ACTIONS_RUNTIME_TOKEN: process.env.ACTIONS_RUNTIME_TOKEN || '',
+        ACTIONS_RUNTIME_URL: process.env.ACTIONS_RUNTIME_URL || '',
+        ACTIONS_RESULTS_URL: process.env.ACTIONS_RESULTS_URL || '',
+        GITHUB_RUN_ID: process.env.GITHUB_RUN_ID || '',
+        GITHUB_RUN_ATTEMPT: process.env.GITHUB_RUN_ATTEMPT || ''
+    };
+    
+    // Write environment to a file that the script can source
+    const envFilePath = path.join(tempDir, 'actions-env.sh');
+    const envFileContent = Object.entries(actionsEnv)
+        .map(([key, value]) => `export ${key}="${value}"`)
+        .join('\n');
+    await fs.writeFile(envFilePath, envFileContent);
+    
     // Create extraction script that downloads volumes on-demand and cleans up
     const extractScriptPath = path.join(tempDir, 'next-volume-extract.sh');
     const extractScript = `#!/bin/bash
 set -e
+
+# Source the environment variables needed for GitHub Actions artifact API
+source "${envFilePath}"
 
 BASE_NAME="${manifest.baseName}"
 VOLUMES_DIR="${volumesDir}"
@@ -517,6 +536,7 @@ if [ ! -f "\$VOLUME_FILE" ]; then
     ARTIFACT_NAME="\${ARTIFACT_BASE}-vol\$(printf '%03d' \$VOLUME_NUM)"
     
     # Download and decompress using Node.js helper
+    # Environment variables are already set from sourcing the env file
     NODE_PATH="${tempDir}/node_modules" node "\${TEMP_DIR}/download-volume.js" "\$VOLUME_NUM" "\$ARTIFACT_NAME" "\$VOLUME_FILE" >&2
     
     if [ \$? -ne 0 ]; then
