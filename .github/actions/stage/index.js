@@ -489,8 +489,8 @@ downloadAndDecompress(volumeNum, artifactName, outputPath)
     const extractScript = `#!/bin/bash
 set -e
 
-# Source the environment variables needed for GitHub Actions artifact API
-source "${envFilePath}"
+// # Source the environment variables needed for GitHub Actions artifact API
+################################################################ source "${envFilePath}"
 
 BASE_NAME="${manifest.baseName}"
 VOLUMES_DIR="${volumesDir}"
@@ -577,7 +577,7 @@ echo "\$VOLUME_FILE" >&"\$TAR_FD"
     console.log('\n=== Extracting Multi-Volume Archive ===');
     console.log('tar will download subsequent volumes on-demand via the info script...');
     
-    await exec.exec('sudo', ['tar', '-xM', '-f', firstVolumePath, '-F', extractScriptPath, '-C', workDir]);
+    await exec.exec('tar', ['-xM', '-f', firstVolumePath, '-F', extractScriptPath, '-C', workDir]);
     
     console.log('✓ Extraction complete');
     
