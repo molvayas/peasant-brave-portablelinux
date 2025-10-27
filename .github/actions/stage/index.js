@@ -137,18 +137,31 @@ echo "[Volume Script] TAR_ARCHIVE: \$TAR_ARCHIVE" >&2
 echo "[Volume Script] TAR_FD: \$TAR_FD" >&2
 echo "[Volume Script] ============================================" >&2
 
-# Generate next volume name
+# Determine which volume to process and what to return
 if [ -z "\$TAR_VOLUME" ]; then
-    # First call (before first volume is complete) - just tell tar the name for volume 1
+    # First call - tar hasn't started yet, just tell it the name for the first volume
     NEXT_ARCHIVE="\${TAR_ARCHIVE}-1"
-    echo "[Volume Script] First call - next volume will be: \$NEXT_ARCHIVE" >&2
+    echo "[Volume Script] First call - first volume will be: \$NEXT_ARCHIVE" >&2
 else
-    # A volume was just completed - process it before continuing
-    COMPLETED_VOLUME="\${TAR_ARCHIVE}-\${TAR_VOLUME}"
-    echo "[Volume Script] Processing completed volume: \$COMPLETED_VOLUME" >&2
+    # TAR_VOLUME=N means tar is about to start volume N
+    # So we need to process volume N-1 (the one that just completed)
+    COMPLETED_VOLUME_NUM=\$((TAR_VOLUME - 1))
+    
+    if [ \$COMPLETED_VOLUME_NUM -eq 0 ]; then
+        # The initial volume (no suffix) just completed
+        COMPLETED_VOLUME="\${TAR_ARCHIVE}"
+    else
+        # A numbered volume just completed
+        COMPLETED_VOLUME="\${TAR_ARCHIVE}-\${COMPLETED_VOLUME_NUM}"
+    fi
+    
+    echo "[Volume Script] Processing completed volume \${COMPLETED_VOLUME_NUM}: \${COMPLETED_VOLUME}" >&2
     
     if [ ! -f "\$COMPLETED_VOLUME" ]; then
         echo "[Volume Script] ERROR: Completed volume file not found!" >&2
+        echo "[Volume Script] Looking for: \$COMPLETED_VOLUME" >&2
+        echo "[Volume Script] Files in directory:" >&2
+        ls -lh "\$(dirname "\$COMPLETED_VOLUME")" >&2 || true
         exit 1
     fi
     
@@ -164,9 +177,9 @@ else
     COMPRESSED_SIZE=\$(du -h "\$COMPRESSED" | cut -f1)
     echo "[Volume Script] Compressed to: \$COMPRESSED_SIZE" >&2
     
-    # Upload using Node.js script (we'll create a helper)
-    echo "[Volume Script] Uploading volume \$TAR_VOLUME..." >&2
-    VOLUME_NUM=\$(printf "%03d" \$TAR_VOLUME)
+    # Upload using Node.js script
+    echo "[Volume Script] Uploading volume \${COMPLETED_VOLUME_NUM}..." >&2
+    VOLUME_NUM=\$(printf "%03d" \$COMPLETED_VOLUME_NUM)
     node "${tempDir}/upload-volume.js" "\$COMPRESSED" "${artifactName}-vol\${VOLUME_NUM}" 2>&1 | sed 's/^/[upload] /' >&2
     UPLOAD_EXIT=\$?
     
@@ -177,15 +190,15 @@ else
     
     echo "[Volume Script] Upload successful, cleaning up..." >&2
     rm -f "\$COMPRESSED"
-    echo "[Volume Script] Volume \$TAR_VOLUME processed successfully" >&2
+    echo "[Volume Script] Volume \${COMPLETED_VOLUME_NUM} processed successfully" >&2
     
     # Track processed volume
     echo "\${COMPLETED_VOLUME}" >> "${processedVolumesFile}"
     
     # Generate next volume name
-    NEXT_VOLUME=\$((TAR_VOLUME + 1))
-    NEXT_ARCHIVE="\${TAR_ARCHIVE}-\${NEXT_VOLUME}"
-    echo "[Volume Script] Next volume will be: \$NEXT_ARCHIVE" >&2
+    # tar will create volume TAR_VOLUME, so tell it the name for that
+    NEXT_ARCHIVE="\${TAR_ARCHIVE}-\${TAR_VOLUME}"
+    echo "[Volume Script] Next volume (volume \${TAR_VOLUME}) will be: \$NEXT_ARCHIVE" >&2
 fi
 
 # Send new volume name to tar via TAR_FD
