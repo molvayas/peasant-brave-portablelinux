@@ -373,11 +373,7 @@ uploadVolume(filePath, artifactName).then(code => process.exit(code)).catch(e =>
 
 /**
  * Extract multi-volume tar archive with streaming download and decompression
- * This approach minimizes disk usage by:
- * 1. Downloading one compressed volume at a time
- * 2. Decompressing the volume
- * 3. Extracting to final location
- * 4. Deleting both compressed and uncompressed volumes before next download
+ * Uses tar -xM (multi-volume mode) with an info script to provide volume names
  * 
  * @param {string} workDir - Working directory for extraction
  * @param {object} artifact - Artifact client for downloads
@@ -408,62 +404,166 @@ async function extractMultiVolumeArchive(workDir, artifact, artifactName) {
     console.log(`  Volume size: ${manifest.volumeSize}`);
     console.log(`  Created: ${manifest.timestamp}`);
     
-    // Process each volume sequentially
-    for (let i = 0; i < manifest.volumeCount; i++) {
-        const volumeNum = i + 1;
-        const volumeArtifactName = manifest.volumes[i];
+    // Create a Node.js helper script for downloading/decompressing volumes on demand
+    const volumesDir = path.join(tempDir, 'volumes');
+    await io.mkdirP(volumesDir);
+    
+    const downloadHelperPath = path.join(tempDir, 'download-volume.js');
+    const downloadHelper = `const {DefaultArtifactClient} = require('@actions/artifact');
+const {exec} = require('@actions/exec');
+const fs = require('fs').promises;
+const path = require('path');
+
+async function downloadAndDecompress(volumeNum, artifactName, outputPath) {
+    const artifact = new DefaultArtifactClient();
+    const tempDownload = path.join('${tempDir}', \`dl-\${volumeNum}\`);
+    
+    try {
+        await fs.mkdir(tempDownload, {recursive: true});
         
-        console.log(`\n=== Processing Volume ${volumeNum}/${manifest.volumeCount} ===`);
-        console.log(`Artifact: ${volumeArtifactName}`);
+        console.error(\`[Download] Fetching \${artifactName}...\`);
+        const volumeInfo = await artifact.getArtifact(artifactName);
+        await artifact.downloadArtifact(volumeInfo.artifact.id, {path: tempDownload});
         
-        // Download compressed volume
-        console.log('Downloading compressed volume...');
-        const volumeDownloadPath = path.join(tempDir, `vol${volumeNum}`);
-        await io.mkdirP(volumeDownloadPath);
+        // Find compressed file
+        const files = await fs.readdir(tempDownload);
+        const compressedFile = files.find(f => f.endsWith('.zst'));
+        if (!compressedFile) throw new Error('No .zst file found');
         
-        try {
-            const volumeInfo = await artifact.getArtifact(volumeArtifactName);
-            await artifact.downloadArtifact(volumeInfo.artifact.id, {path: volumeDownloadPath});
-        } catch (e) {
-            throw new Error(`Failed to download ${volumeArtifactName}: ${e.message}`);
-        }
+        const compressedPath = path.join(tempDownload, compressedFile);
         
-        // Find the compressed file
-        const volumeFiles = await fs.readdir(volumeDownloadPath);
-        const compressedFile = volumeFiles.find(f => f.endsWith('.zst'));
-        if (!compressedFile) {
-            throw new Error(`No .zst file found in ${volumeArtifactName}`);
-        }
+        console.error(\`[Download] Decompressing to \${path.basename(outputPath)}...\`);
+        await exec('zstd', ['-d', '--rm', compressedPath, '-o', outputPath]);
         
-        const compressedPath = path.join(volumeDownloadPath, compressedFile);
-        const decompressedPath = compressedPath.replace('.zst', '');
+        console.error(\`[Download] ✓ Volume \${volumeNum} ready\`);
         
-        console.log(`Decompressing ${compressedFile}...`);
-        await exec.exec('zstd', ['-d', '--rm', compressedPath, '-o', decompressedPath]);
-        console.log('✓ Decompressed');
+        // Cleanup download dir
+        await fs.rm(tempDownload, {recursive: true, force: true});
         
-        // Extract tar volume
-        console.log('Extracting volume...');
-        if (volumeNum === 1) {
-            // First volume: create extraction
-            await exec.exec('sudo', ['tar', '-xf', decompressedPath, '-C', workDir]);
-        } else {
-            // Subsequent volumes: append to existing extraction
-            await exec.exec('sudo', ['tar', '-xf', decompressedPath, '-C', workDir]);
-        }
-        console.log('✓ Extracted');
-        
-        // Delete decompressed tar
-        await fs.unlink(decompressedPath);
-        console.log('✓ Cleaned up volume files');
-        
-        // Remove volume download directory
-        await io.rmRF(volumeDownloadPath);
+        return 0;
+    } catch (e) {
+        console.error(\`[Download] Error: \${e.message}\`);
+        return 1;
     }
+}
+
+const volumeNum = parseInt(process.argv[2]);
+const artifactName = process.argv[3];
+const outputPath = process.argv[4];
+
+downloadAndDecompress(volumeNum, artifactName, outputPath)
+    .then(code => process.exit(code))
+    .catch(e => {
+        console.error(e);
+        process.exit(1);
+    });
+`;
     
-    // Cleanup temp directory
+    await fs.writeFile(downloadHelperPath, downloadHelper);
+    
+    // Install dependencies for the download helper
+    console.log('Installing dependencies for download helper...');
+    await exec.exec('npm', ['install', '@actions/artifact@2.2.1', '@actions/exec@1.1.1'], {
+        cwd: tempDir,
+        ignoreReturnCode: true
+    });
+    
+    // Create extraction script that downloads volumes on-demand and cleans up
+    const extractScriptPath = path.join(tempDir, 'next-volume-extract.sh');
+    const extractScript = `#!/bin/bash
+set -e
+
+BASE_NAME="${manifest.baseName}"
+VOLUMES_DIR="${volumesDir}"
+MANIFEST_FILE="${manifestPath}"
+TEMP_DIR="${tempDir}"
+
+# Parse manifest to get artifact names
+VOLUME_COUNT=${manifest.volumeCount}
+ARTIFACT_BASE="${artifactName}"
+
+# Track previous volume for deletion
+PREV_VOLUME_FILE=""
+
+if [ -z "\$TAR_VOLUME" ]; then
+    # First call - prepare volume 1
+    VOLUME_NUM=1
+    VOLUME_FILE="\${VOLUMES_DIR}/\${BASE_NAME}.tar"
+else
+    VOLUME_NUM=\$TAR_VOLUME
+    VOLUME_FILE="\${VOLUMES_DIR}/\${BASE_NAME}.tar-\${VOLUME_NUM}"
+    
+    # Delete previous volume to save space
+    if [ \$VOLUME_NUM -gt 1 ]; then
+        if [ \$VOLUME_NUM -eq 2 ]; then
+            PREV_VOLUME_FILE="\${VOLUMES_DIR}/\${BASE_NAME}.tar"
+        else
+            PREV_NUM=\$((VOLUME_NUM - 1))
+            PREV_VOLUME_FILE="\${VOLUMES_DIR}/\${BASE_NAME}.tar-\${PREV_NUM}"
+        fi
+        
+        if [ -f "\$PREV_VOLUME_FILE" ]; then
+            echo "[Extract] Deleting previous volume: \${PREV_VOLUME_FILE}" >&2
+            rm -f "\$PREV_VOLUME_FILE"
+        fi
+    fi
+fi
+
+# Check if volume already exists (shouldn't happen, but just in case)
+if [ ! -f "\$VOLUME_FILE" ]; then
+    echo "[Extract] Volume \${VOLUME_NUM} not ready, downloading..." >&2
+    
+    # Determine artifact name based on volume number
+    ARTIFACT_NAME="\${ARTIFACT_BASE}-vol\$(printf '%03d' \$VOLUME_NUM)"
+    
+    # Download and decompress using Node.js helper
+    NODE_PATH="${tempDir}/node_modules" node "\${TEMP_DIR}/download-volume.js" "\$VOLUME_NUM" "\$ARTIFACT_NAME" "\$VOLUME_FILE" >&2
+    
+    if [ \$? -ne 0 ]; then
+        echo "[Extract] ERROR: Failed to download volume \${VOLUME_NUM}" >&2
+        exit 1
+    fi
+fi
+
+# Return volume path to tar
+echo "\$VOLUME_FILE" >&"\$TAR_FD"
+`;
+    
+    await fs.writeFile(extractScriptPath, extractScript);
+    await exec.exec('chmod', ['+x', extractScriptPath]);
+    
+    // Download first volume before starting extraction
+    console.log('\n=== Downloading First Volume ===');
+    const firstVolumePath = path.join(volumesDir, `${manifest.baseName}.tar`);
+    const firstArtifactName = manifest.volumes[0];
+    
+    console.log(`Fetching ${firstArtifactName}...`);
+    const firstDownloadPath = path.join(tempDir, 'dl-1');
+    await io.mkdirP(firstDownloadPath);
+    
+    const volumeInfo = await artifact.getArtifact(firstArtifactName);
+    await artifact.downloadArtifact(volumeInfo.artifact.id, {path: firstDownloadPath});
+    
+    const firstFiles = await fs.readdir(firstDownloadPath);
+    const firstCompressed = firstFiles.find(f => f.endsWith('.zst'));
+    const firstCompressedPath = path.join(firstDownloadPath, firstCompressed);
+    
+    console.log('Decompressing first volume...');
+    await exec.exec('zstd', ['-d', '--rm', firstCompressedPath, '-o', firstVolumePath]);
+    await io.rmRF(firstDownloadPath);
+    console.log('✓ First volume ready');
+    
+    // Extract using multi-volume mode
+    console.log('\n=== Extracting Multi-Volume Archive ===');
+    console.log('tar will download subsequent volumes on-demand via the info script...');
+    
+    await exec.exec('sudo', ['tar', '-xM', '-f', firstVolumePath, '-F', extractScriptPath, '-C', workDir]);
+    
+    console.log('✓ Extraction complete');
+    
+    // Cleanup
     await io.rmRF(tempDir);
-    
+    console.log('✓ Cleaned up temporary files');
     console.log('\n✓ Multi-volume extraction complete');
 }
 
@@ -645,7 +745,7 @@ async function run() {
             const elapsedTime = Date.now() - JOB_START_TIME;
             let remainingTime = MAX_BUILD_TIME - elapsedTime;
             // TODO: temporary to test if builds are resumed correctly
-            // remainingTime = 11*60*1000
+            remainingTime = 11*60*1000
             
             console.log('=== Stage: npm run build ===');
             console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
@@ -681,12 +781,11 @@ async function run() {
             console.log('Running npm run build (component build)...');
             
         
-            const buildCode =124
-            // await execWithTimeout('npm', ['run', 'build'], {
-            //     cwd: braveDir,
-            //     timeoutSeconds: timeoutSeconds
-            // });
-            
+            const buildCode = await execWithTimeout('npm', ['run', 'build'], {
+                cwd: braveDir,
+                timeoutSeconds: timeoutSeconds
+            })
+        
             // // Run disk usage analysis AFTER build (regardless of success/timeout/failure)
             // const ncduAfterPath = path.join(workDir, `ncdu-after-build-${Date.now()}.json`);
             // await runNcduAnalysis(ncduAfterPath, '/');
