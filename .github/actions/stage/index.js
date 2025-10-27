@@ -99,46 +99,165 @@ async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifac
     
     const tarArchivePath = path.join(tempDir, `${archiveBaseName}.tar`);
     
+    // Verify zstd is available
+    console.log('Verifying zstd is installed...');
+    try {
+        await exec.exec('zstd', ['--version']);
+        console.log('✓ zstd is available');
+    } catch (e) {
+        throw new Error('zstd is not installed! Please install zstd before running this script.');
+    }
+    
     console.log('\nStarting multi-volume tar creation...');
     console.log(`Volume size: 5GB (${volumeSizeBlocks} blocks of 512 bytes)`);
     console.log(`Archive base: ${tarArchivePath}`);
+    console.log(`Temp directory: ${tempDir}`);
     console.log('Files will be removed as they are archived to save disk space\n');
     
     // Create tar with multi-volume support
-    // Note: tar will create files like archive.tar-1, archive.tar-2, etc.
-    // We'll use a wrapper script to handle the volume changes
+    // The info script is called at the end of each tape/volume
+    // It should compress, upload, cleanup, then return the next volume name
+    // This makes the process synchronous and reliable
     const volumeScriptPath = path.join(tempDir, 'next-volume.sh');
+    const processedVolumesFile = path.join(tempDir, 'processed-volumes.txt');
     const volumeScript = `#!/bin/bash
-# This script is called by tar when it needs a new volume
-# It receives the archive name as stdin and should output the next volume name
+# This script is called by tar at the end of each volume
+# Environment variables provided by tar:
+#   TAR_ARCHIVE - current archive name
+#   TAR_VOLUME - current volume number (1-based)
+#   TAR_FD - file descriptor to send new volume name
 
-# Read the current archive name
-read ARCHIVE
+set -e
 
-# Extract volume number from filename
-if [[ "$ARCHIVE" =~ -([0-9]+)$ ]]; then
-    CURRENT_NUM="\${BASH_REMATCH[1]}"
-    NEXT_NUM=$((CURRENT_NUM + 1))
-    NEXT_ARCHIVE="\${ARCHIVE%-*}-\${NEXT_NUM}"
+echo "" >&2
+echo "[Volume Script] ============================================" >&2
+echo "[Volume Script] Called at: \$(date)" >&2
+echo "[Volume Script] TAR_VOLUME: \${TAR_VOLUME:-initial}" >&2
+echo "[Volume Script] TAR_ARCHIVE: \$TAR_ARCHIVE" >&2
+echo "[Volume Script] TAR_FD: \$TAR_FD" >&2
+echo "[Volume Script] ============================================" >&2
+
+# Generate next volume name
+if [ -z "\$TAR_VOLUME" ]; then
+    # First call (before first volume is complete) - just tell tar the name for volume 1
+    NEXT_ARCHIVE="\${TAR_ARCHIVE}-1"
+    echo "[Volume Script] First call - next volume will be: \$NEXT_ARCHIVE" >&2
 else
-    # First volume, add -1 suffix
-    NEXT_ARCHIVE="\${ARCHIVE}-1"
+    # A volume was just completed - process it before continuing
+    COMPLETED_VOLUME="\${TAR_ARCHIVE}-\${TAR_VOLUME}"
+    echo "[Volume Script] Processing completed volume: \$COMPLETED_VOLUME" >&2
+    
+    if [ ! -f "\$COMPLETED_VOLUME" ]; then
+        echo "[Volume Script] ERROR: Completed volume file not found!" >&2
+        exit 1
+    fi
+    
+    # Get file size for logging
+    SIZE=\$(du -h "\$COMPLETED_VOLUME" | cut -f1)
+    echo "[Volume Script] Volume size: \$SIZE" >&2
+    
+    # Compress with zstd
+    echo "[Volume Script] Compressing with zstd..." >&2
+    COMPRESSED="\${COMPLETED_VOLUME}.zst"
+    zstd -3 -T0 --rm "\$COMPLETED_VOLUME" -o "\$COMPRESSED" 2>&1 | sed 's/^/[zstd] /' >&2
+    
+    COMPRESSED_SIZE=\$(du -h "\$COMPRESSED" | cut -f1)
+    echo "[Volume Script] Compressed to: \$COMPRESSED_SIZE" >&2
+    
+    # Upload using Node.js script (we'll create a helper)
+    echo "[Volume Script] Uploading volume \$TAR_VOLUME..." >&2
+    VOLUME_NUM=\$(printf "%03d" \$TAR_VOLUME)
+    node "${tempDir}/upload-volume.js" "\$COMPRESSED" "${artifactName}-vol\${VOLUME_NUM}" 2>&1 | sed 's/^/[upload] /' >&2
+    UPLOAD_EXIT=\$?
+    
+    if [ \$UPLOAD_EXIT -ne 0 ]; then
+        echo "[Volume Script] ERROR: Upload failed with exit code \$UPLOAD_EXIT" >&2
+        exit 1
+    fi
+    
+    echo "[Volume Script] Upload successful, cleaning up..." >&2
+    rm -f "\$COMPRESSED"
+    echo "[Volume Script] Volume \$TAR_VOLUME processed successfully" >&2
+    
+    # Track processed volume
+    echo "\${COMPLETED_VOLUME}" >> "${processedVolumesFile}"
+    
+    # Generate next volume name
+    NEXT_VOLUME=\$((TAR_VOLUME + 1))
+    NEXT_ARCHIVE="\${TAR_ARCHIVE}-\${NEXT_VOLUME}"
+    echo "[Volume Script] Next volume will be: \$NEXT_ARCHIVE" >&2
 fi
 
-echo "\$NEXT_ARCHIVE"
+# Send new volume name to tar via TAR_FD
+echo "\$NEXT_ARCHIVE" >&"\$TAR_FD"
+echo "[Volume Script] Continuing to next volume..." >&2
+echo "[Volume Script] ============================================" >&2
+echo "" >&2
 
-# Signal Node.js that a volume is complete
-VOLUME_NUM="\${CURRENT_NUM:-0}"
-if [ "\$VOLUME_NUM" != "0" ]; then
-    touch "\${ARCHIVE}.complete"
-fi
+exit 0
 `;
     
     await fs.writeFile(volumeScriptPath, volumeScript);
     await exec.exec('chmod', ['+x', volumeScriptPath]);
     
+    // Create Node.js upload helper script
+    const uploadScriptPath = path.join(tempDir, 'upload-volume.js');
+    const uploadScript = `const {DefaultArtifactClient} = require('@actions/artifact');
+
+async function uploadVolume(filePath, artifactName) {
+    const artifact = new DefaultArtifactClient();
+    const tempDir = '${tempDir}';
+    
+    console.log(\`Uploading \${filePath} as \${artifactName}...\`);
+    
+    for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+            await artifact.uploadArtifact(artifactName, [filePath], tempDir, {
+                retentionDays: 1,
+                compressionLevel: 0
+            });
+            console.log(\`✓ Successfully uploaded \${artifactName}\`);
+            return 0;
+        } catch (e) {
+            console.error(\`Attempt \${attempt + 1} failed: \${e.message}\`);
+            if (attempt < 4) {
+                console.log('Retrying in 5 seconds...');
+                await new Promise(r => setTimeout(r, 5000));
+            }
+        }
+    }
+    
+    console.error(\`✗ Failed to upload after 5 attempts\`);
+    return 1;
+}
+
+const filePath = process.argv[2];
+const artifactName = process.argv[3];
+
+uploadVolume(filePath, artifactName).then(code => process.exit(code)).catch(e => {
+    console.error(\`Error: \${e.message}\`);
+    process.exit(1);
+});
+`;
+    
+    await fs.writeFile(uploadScriptPath, uploadScript);
+    console.log('✓ Created volume processing script');
+    console.log('✓ Created upload helper script');
+    
     // Start tar process with multi-volume flags
     let tarExitCode = 0;
+    console.log('[Tar] Starting tar command with args:', [
+        '-cM',  // Create multi-volume archive
+        '-L', volumeSizeBlocks,  // Volume size in blocks
+        '-F', volumeScriptPath,  // Script for new volumes
+        '-f', tarArchivePath,
+        '-H', 'posix',
+        '--atime-preserve',
+        '--remove-files',  // Delete files after adding to archive
+        '-C', workDir,
+        ...paths
+    ].join(' '));
+    
     const tarProcess = exec.exec('tar', [
         '-cM',  // Create multi-volume archive
         '-L', volumeSizeBlocks,  // Volume size in blocks
@@ -152,153 +271,40 @@ fi
     ], {
         ignoreReturnCode: true
     }).then(code => {
+        console.log(`[Tar] Process exited with code: ${code}`);
         tarExitCode = code;
     });
     
-    // Monitor for completed volumes and upload them
-    let volumeCount = 0;
-    const uploadedVolumes = [];
-    const processedVolumes = new Set();
+    // No monitoring needed - the info script handles everything synchronously!
+    // Just wait for tar to complete
+    console.log('\n[Main] Tar is running...');
+    console.log('[Main] The info script will handle compression and upload for each volume');
+    console.log('[Main] Waiting for tar to complete...\n');
     
-    const monitorInterval = setInterval(async () => {
-        try {
-            const files = await fs.readdir(tempDir);
-            
-            // Look for tar volume files that haven't been processed yet
-            const volumeFiles = files.filter(f => 
-                f.startsWith(`${archiveBaseName}.tar`) && 
-                f.match(/\.tar(-\d+)?$/) &&
-                !f.endsWith('.complete') &&
-                !processedVolumes.has(f)
-            );
-            
-            for (const volumeFile of volumeFiles) {
-                const volumePath = path.join(tempDir, volumeFile);
-                
-                // Check if volume is complete (either marked complete or tar process ended)
-                const completeMarker = `${volumePath}.complete`;
-                const isComplete = files.includes(path.basename(completeMarker)) || tarExitCode !== 0;
-                
-                if (!isComplete) {
-                    // Check file modification time - if not modified for 10s, consider complete
-                    try {
-                        const stats = await fs.stat(volumePath);
-                        const now = Date.now();
-                        const mtime = stats.mtimeMs;
-                        if (now - mtime < 10000) {
-                            continue; // Still being written
-                        }
-                    } catch (e) {
-                        continue;
-                    }
-                }
-                
-                processedVolumes.add(volumeFile);
-                volumeCount++;
-                
-                console.log(`\n=== Processing ${volumeFile} ===`);
-                
-                // Compress with zstd
-                console.log('Compressing with zstd...');
-                const compressedPath = `${volumePath}.zst`;
-                await exec.exec('zstd', ['-19', '-T0', '--rm', volumePath, '-o', compressedPath]);
-                console.log('✓ Compressed');
-                
-                // Upload compressed volume
-                const volumeArtifactName = `${artifactName}-vol${volumeCount.toString().padStart(3, '0')}`;
-                console.log(`Uploading as ${volumeArtifactName}...`);
-                
-                let uploaded = false;
-                for (let attempt = 0; attempt < 5; attempt++) {
-                    try {
-                        await artifact.uploadArtifact(volumeArtifactName, [compressedPath], tempDir, {
-                            retentionDays: 1,
-                            compressionLevel: 0
-                        });
-                        console.log(`✓ Uploaded ${volumeArtifactName}`);
-                        uploadedVolumes.push(volumeArtifactName);
-                        uploaded = true;
-                        break;
-                    } catch (e) {
-                        console.log(`Upload attempt ${attempt + 1} failed: ${e.message}`);
-                        await new Promise(r => setTimeout(r, 5000));
-                    }
-                }
-                
-                if (!uploaded) {
-                    throw new Error(`Failed to upload ${volumeArtifactName} after 5 attempts`);
-                }
-                
-                // Delete compressed file and marker
-                await fs.unlink(compressedPath);
-                try {
-                    await fs.unlink(completeMarker);
-                } catch (e) {
-                    // Marker may not exist
-                }
-                console.log('✓ Cleaned up');
-            }
-        } catch (e) {
-            console.error(`Error in volume monitor: ${e.message}`);
-        }
-    }, 5000);  // Check every 5 seconds
-    
-    // Wait for tar to complete
     await tarProcess;
     
-    // Final pass to catch any remaining volumes
-    console.log('\nTar process completed, processing any remaining volumes...');
-    await new Promise(r => setTimeout(r, 5000));
+    console.log(`\n[Main] Tar process completed with exit code: ${tarExitCode}`);
     
-    // Trigger final monitoring pass
+    // Read the list of processed volumes from the tracking file
+    const uploadedVolumes = [];
+    let volumeCount = 0;
+    
     try {
-        const files = await fs.readdir(tempDir);
-        const remainingVolumes = files.filter(f => 
-            f.startsWith(`${archiveBaseName}.tar`) && 
-            f.match(/\.tar(-\d+)?$/) &&
-            !processedVolumes.has(f)
-        );
+        const processedContent = await fs.readFile(processedVolumesFile, 'utf-8');
+        const processedLines = processedContent.trim().split('\n').filter(l => l);
+        volumeCount = processedLines.length;
         
-        for (const volumeFile of remainingVolumes) {
-            const volumePath = path.join(tempDir, volumeFile);
-            processedVolumes.add(volumeFile);
-            volumeCount++;
-            
-            console.log(`\n=== Processing final volume ${volumeFile} ===`);
-            
-            const compressedPath = `${volumePath}.zst`;
-            await exec.exec('zstd', ['-19', '-T0', '--rm', volumePath, '-o', compressedPath]);
-            
-            const volumeArtifactName = `${artifactName}-vol${volumeCount.toString().padStart(3, '0')}`;
-            
-            let uploaded = false;
-            for (let attempt = 0; attempt < 5; attempt++) {
-                try {
-                    await artifact.uploadArtifact(volumeArtifactName, [compressedPath], tempDir, {
-                        retentionDays: 1,
-                        compressionLevel: 0
-                    });
-                    uploadedVolumes.push(volumeArtifactName);
-                    uploaded = true;
-                    break;
-                } catch (e) {
-                    await new Promise(r => setTimeout(r, 5000));
-                }
-            }
-            
-            if (uploaded) {
-                await fs.unlink(compressedPath);
-                console.log(`✓ Uploaded and cleaned up ${volumeArtifactName}`);
-            }
-        }
+        console.log(`[Main] Processed ${volumeCount} volume(s):`);
+        processedLines.forEach((line, idx) => {
+            const volNum = (idx + 1).toString().padStart(3, '0');
+            uploadedVolumes.push(`${artifactName}-vol${volNum}`);
+            console.log(`  - Volume ${idx + 1}: ${path.basename(line)}`);
+        });
     } catch (e) {
-        console.error(`Error processing final volumes: ${e.message}`);
+        console.log(`[Main] Warning: Could not read processed volumes file: ${e.message}`);
     }
     
-    clearInterval(monitorInterval);
-    
-    console.log(`\nTar completed with exit code: ${tarExitCode}`);
-    console.log(`Total volumes created: ${volumeCount}`);
+    console.log(`\n[Main] Total volumes created and uploaded: ${volumeCount}`);
     
     // Create and upload manifest
     const manifest = {
@@ -468,7 +474,7 @@ async function run() {
             // Install zstd for decompression (needed before extraction)
             console.log('Installing zstd for decompression...');
             await exec.exec('sudo', ['apt-get', 'update'], {ignoreReturnCode: true});
-            await exec.exec('sudo', ['apt-get', 'install', '-y', 'ncdu'], {ignoreReturnCode: true});
+            await exec.exec('sudo', ['apt-get', 'install', '-y', 'zstd', 'ncdu'], {ignoreReturnCode: true});
             
             // Extract multi-volume archive
             await extractMultiVolumeArchive(workDir, artifact, artifactName);
@@ -499,7 +505,7 @@ async function run() {
         await exec.exec('sudo', ['apt-get', 'install', '-y', 
             'build-essential', 'git', 'python3', 'python3-pip', 
             'python-setuptools', 'python3-distutils', 'python-is-python3',
-            'curl', 'lsb-release', 'sudo', 'tzdata', 'wget', 'ncdu'], {ignoreReturnCode: true});
+            'curl', 'lsb-release', 'sudo', 'tzdata', 'wget', 'ncdu', 'zstd'], {ignoreReturnCode: true});
 
         // Clone brave-core to src/brave (following official structure)
         // Brave uses tags with 'v' prefix (e.g., v1.85.74)
