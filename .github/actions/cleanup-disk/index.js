@@ -19,7 +19,7 @@ async function run() {
             {path: '/usr/lib/google-cloud-sdk', name: 'Google Cloud SDK'},
             {path: '/usr/share/swift', name: 'Swift'},
             {path: '/opt/ghc', name: 'GHC (opt)'},
-            {path: '/opt/hostedtoolcache', name: 'Hosted Tool Cache'},
+            // {path: '/opt/hostedtoolcache', name: 'Hosted Tool Cache'},
             {path: '/usr/local/julia', name: 'Julia'},
             {path: '/opt/az', name: 'Azure CLI'},
             {path: '/usr/local/share/powershell', name: 'PowerShell'},
