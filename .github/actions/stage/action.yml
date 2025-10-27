@@ -11,6 +11,6 @@ outputs:
   finished:
     description: Whether the build has finished successfully
 runs:
-  using: 'node20'
+  using: 'node24'
   main: 'index.js'
 
