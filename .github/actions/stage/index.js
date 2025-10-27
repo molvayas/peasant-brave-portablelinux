@@ -489,8 +489,11 @@ downloadAndDecompress(volumeNum, artifactName, outputPath)
     const extractScript = `#!/bin/bash
 set -e
 
-// # Source the environment variables needed for GitHub Actions artifact API
-################################################################ source "${envFilePath}"
+# Source the environment variables needed for GitHub Actions artifact API
+# (only needed when running under sudo which strips env vars)
+if [ -f "${envFilePath}" ]; then
+    source "${envFilePath}"
+fi
 
 BASE_NAME="${manifest.baseName}"
 VOLUMES_DIR="${volumesDir}"
@@ -501,18 +504,33 @@ TEMP_DIR="${tempDir}"
 VOLUME_COUNT=${manifest.volumeCount}
 ARTIFACT_BASE="${artifactName}"
 
-# Track previous volume for deletion
-PREV_VOLUME_FILE=""
-
 if [ -z "\$TAR_VOLUME" ]; then
-    # First call - prepare volume 1
+    # First call - return volume 1 path
     VOLUME_NUM=1
     VOLUME_FILE="\${VOLUMES_DIR}/\${BASE_NAME}.tar"
+    echo "[Extract] Returning volume 1: \$VOLUME_FILE" >&2
 else
+    # TAR_VOLUME = N means tar wants volume N
     VOLUME_NUM=\$TAR_VOLUME
-    VOLUME_FILE="\${VOLUMES_DIR}/\${BASE_NAME}.tar-\${VOLUME_NUM}"
     
-    # Delete previous volume to save space
+    # Check if this volume number is beyond what we have
+    if [ \$VOLUME_NUM -gt \$VOLUME_COUNT ]; then
+        echo "[Extract] ERROR: Tar requested volume \${VOLUME_NUM} but only \${VOLUME_COUNT} volumes exist" >&2
+        echo "[Extract] This means the archive is complete" >&2
+        # Don't exit with error - tar might just be checking
+        # Return empty to signal no more volumes
+        echo "" >&"\$TAR_FD"
+        exit 0
+    fi
+    
+    # Determine the volume filename
+    if [ \$VOLUME_NUM -eq 1 ]; then
+        VOLUME_FILE="\${VOLUMES_DIR}/\${BASE_NAME}.tar"
+    else
+        VOLUME_FILE="\${VOLUMES_DIR}/\${BASE_NAME}.tar-\${VOLUME_NUM}"
+    fi
+    
+    # Delete the PREVIOUS volume (the one tar just finished with)
     if [ \$VOLUME_NUM -gt 1 ]; then
         if [ \$VOLUME_NUM -eq 2 ]; then
             PREV_VOLUME_FILE="\${VOLUMES_DIR}/\${BASE_NAME}.tar"
@@ -522,27 +540,28 @@ else
         fi
         
         if [ -f "\$PREV_VOLUME_FILE" ]; then
-            echo "[Extract] Deleting previous volume: \${PREV_VOLUME_FILE}" >&2
+            echo "[Extract] Deleting previous volume (volume \$((VOLUME_NUM - 1))): \${PREV_VOLUME_FILE}" >&2
             rm -f "\$PREV_VOLUME_FILE"
         fi
     fi
-fi
-
-# Check if volume already exists (shouldn't happen, but just in case)
-if [ ! -f "\$VOLUME_FILE" ]; then
-    echo "[Extract] Volume \${VOLUME_NUM} not ready, downloading..." >&2
     
-    # Determine artifact name based on volume number
-    ARTIFACT_NAME="\${ARTIFACT_BASE}-vol\$(printf '%03d' \$VOLUME_NUM)"
-    
-    # Download and decompress using Node.js helper
-    # Environment variables are already set from sourcing the env file
-    NODE_PATH="${tempDir}/node_modules" node "\${TEMP_DIR}/download-volume.js" "\$VOLUME_NUM" "\$ARTIFACT_NAME" "\$VOLUME_FILE" >&2
-    
-    if [ \$? -ne 0 ]; then
-        echo "[Extract] ERROR: Failed to download volume \${VOLUME_NUM}" >&2
-        exit 1
+    # Download the requested volume if not already present
+    if [ ! -f "\$VOLUME_FILE" ]; then
+        echo "[Extract] Downloading volume \${VOLUME_NUM}..." >&2
+        
+        # Determine artifact name based on volume number
+        ARTIFACT_NAME="\${ARTIFACT_BASE}-vol\$(printf '%03d' \$VOLUME_NUM)"
+        
+        # Download and decompress using Node.js helper
+        NODE_PATH="${tempDir}/node_modules" node "\${TEMP_DIR}/download-volume.js" "\$VOLUME_NUM" "\$ARTIFACT_NAME" "\$VOLUME_FILE" >&2
+        
+        if [ \$? -ne 0 ]; then
+            echo "[Extract] ERROR: Failed to download volume \${VOLUME_NUM}" >&2
+            exit 1
+        fi
     fi
+    
+    echo "[Extract] Returning volume \${VOLUME_NUM}: \$VOLUME_FILE" >&2
 fi
 
 # Return volume path to tar
