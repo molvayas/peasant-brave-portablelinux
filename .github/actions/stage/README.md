@@ -26,7 +26,12 @@ A production-ready, multi-stage GitHub Action for building Brave Browser with su
 │   │   ├── macos.js            # macOS build logic (stub)
 │   │   └── windows.js          # Windows build logic (stub)
 │   ├── archive/
-│   │   └── multi-volume.js     # Multi-volume tar archive operations
+│   │   ├── multi-volume.js     # Multi-volume tar operations (orchestration)
+│   │   └── scripts/
+│   │       ├── next-volume.sh          # Volume processing during creation
+│   │       ├── upload-volume.js        # Upload helper
+│   │       ├── next-volume-extract.sh  # Volume processing during extraction
+│   │       └── download-volume.js      # Download helper
 │   ├── utils/
 │   │   ├── exec.js             # Execution utilities (timeout, sync)
 │   │   ├── disk.js             # Disk analysis and cleanup
@@ -67,6 +72,12 @@ Each builder implements:
 
 #### `archive/`
 Multi-volume archive operations for checkpoint/resume:
+- **multi-volume.js**: Orchestrates archive creation and extraction
+- **scripts/**: Dedicated bash and node scripts for volume processing
+  - `next-volume.sh`: Called by tar during archive creation
+  - `upload-volume.js`: Uploads compressed volumes with retry
+  - `next-volume-extract.sh`: Called by tar during extraction
+  - `download-volume.js`: Downloads and decompresses volumes on-demand
 - Creates tar archives split into 5GB volumes
 - Streams compression and upload to minimize disk usage
 - Downloads and extracts volumes on-demand during restoration

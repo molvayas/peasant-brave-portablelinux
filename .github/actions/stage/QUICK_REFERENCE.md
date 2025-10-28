@@ -12,7 +12,12 @@ src/
 │   ├── macos.js         → macOS stub (TODO)
 │   └── windows.js       → Windows stub (TODO)
 ├── archive/
-│   └── multi-volume.js  → Multi-volume tar operations
+│   ├── multi-volume.js  → Multi-volume orchestration
+│   └── scripts/
+│       ├── next-volume.sh          → Volume processing (create)
+│       ├── upload-volume.js        → Upload helper
+│       ├── next-volume-extract.sh  → Volume processing (extract)
+│       └── download-volume.js      → Download helper
 ├── utils/
 │   ├── exec.js          → Execution with timeout
 │   ├── disk.js          → Disk analysis & cleanup
@@ -121,9 +126,10 @@ const TIMEOUTS = {
 
 ```javascript
 const ARCHIVE = {
-    VOLUME_SIZE_BLOCKS: '10485760',  // 5GB in 512-byte blocks
-    // 20971520 = 10GB
-    // 5242880 = 2.5GB
+    VOLUME_SIZE: '5G',  // GNU tar accepts human-readable sizes
+    // '10G' = 10GB
+    // '2G' = 2GB
+    // '500M' = 500MB
 };
 ```
 
@@ -245,7 +251,7 @@ deleteArtifactSafely(artifact, name)
 - `SYNC_WAIT`: Wait for filesystem sync (10 seconds)
 
 ### ARCHIVE
-- `VOLUME_SIZE_BLOCKS`: Size per volume (5GB)
+- `VOLUME_SIZE`: Size per volume ('5G' for 5GB)
 - `COMPRESSION_LEVEL`: zstd level (3)
 - `MAX_VOLUMES`: Max volumes to delete (20)
 - `RETENTION_DAYS`: Checkpoint retention (1 day)
