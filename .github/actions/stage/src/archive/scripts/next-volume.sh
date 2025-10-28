@@ -13,6 +13,7 @@
 #   $2 - ARTIFACT_NAME: Base name for artifact uploads
 #   $3 - PROCESSED_VOLUMES_FILE: File tracking processed volumes
 #   $4 - COMPRESSION_LEVEL: zstd compression level (e.g., 3)
+#   $5 - SCRIPTS_DIR: Directory containing upload-volume.js
 
 set -e
 
@@ -20,6 +21,7 @@ TEMP_DIR="$1"
 ARTIFACT_NAME="$2"
 PROCESSED_VOLUMES_FILE="$3"
 COMPRESSION_LEVEL="${4:-3}"
+SCRIPTS_DIR="$5"
 
 echo "" >&2
 echo "[Volume Script] ============================================" >&2
@@ -77,7 +79,7 @@ else
     
     # Run upload and capture exit code properly
     set +e
-    NODE_PATH="${TEMP_DIR}/node_modules" node "${TEMP_DIR}/../scripts/upload-volume.js" \
+    NODE_PATH="${TEMP_DIR}/node_modules" node "${SCRIPTS_DIR}/upload-volume.js" \
         "$COMPRESSED" \
         "${ARTIFACT_NAME}-vol${VOLUME_NUM}" \
         "$TEMP_DIR" \

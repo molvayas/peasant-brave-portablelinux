@@ -200,7 +200,7 @@ async function _createWrapperScript(wrapperPath, tempDir, artifactName, processe
     
     const wrapper = `#!/bin/bash
 # Wrapper script that calls the actual volume processing script with arguments
-exec "${actualScriptPath}" "${tempDir}" "${artifactName}" "${processedVolumesFile}" "${compressionLevel}"
+exec "${actualScriptPath}" "${tempDir}" "${artifactName}" "${processedVolumesFile}" "${compressionLevel}" "${SCRIPTS_DIR}"
 `;
     
     await fs.writeFile(wrapperPath, wrapper);
@@ -267,7 +267,11 @@ async function _processFinalVolume(tempDir, tarArchivePath, processedVolumesFile
             finalArtifactName,
             tempDir
         ], {
-            ignoreReturnCode: true
+            ignoreReturnCode: true,
+            env: {
+                ...process.env,
+                NODE_PATH: path.join(tempDir, 'node_modules')
+            }
         });
         
         if (uploadExitCode === 0) {
@@ -382,7 +386,7 @@ if [ -f "${envFilePath}" ]; then
 fi
 
 # Call actual script with arguments
-exec "${actualScriptPath}" "${baseName}" "${volumesDir}" "${volumeCount}" "${artifactBase}" "${tempDir}"
+exec "${actualScriptPath}" "${baseName}" "${volumesDir}" "${volumeCount}" "${artifactBase}" "${tempDir}" "${SCRIPTS_DIR}"
 `;
     
     await fs.writeFile(wrapperPath, wrapper);

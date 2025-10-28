@@ -14,6 +14,7 @@
 #   $3 - VOLUME_COUNT: Total number of volumes
 #   $4 - ARTIFACT_BASE: Base name for artifact downloads
 #   $5 - TEMP_DIR: Temporary directory for scripts
+#   $6 - SCRIPTS_DIR: Directory containing download-volume.js
 
 set -e
 
@@ -22,6 +23,7 @@ VOLUMES_DIR="$2"
 VOLUME_COUNT="$3"
 ARTIFACT_BASE="$4"
 TEMP_DIR="$5"
+SCRIPTS_DIR="$6"
 
 if [ -z "$TAR_VOLUME" ]; then
     # First call - return volume 1 path
@@ -67,7 +69,7 @@ else
         
         ARTIFACT_NAME="${ARTIFACT_BASE}-vol$(printf '%03d' $VOLUME_NUM)"
         
-        NODE_PATH="${TEMP_DIR}/node_modules" node "${TEMP_DIR}/../scripts/download-volume.js" \
+        NODE_PATH="${TEMP_DIR}/node_modules" node "${SCRIPTS_DIR}/download-volume.js" \
             "$VOLUME_NUM" \
             "$ARTIFACT_NAME" \
             "$VOLUME_FILE" \
