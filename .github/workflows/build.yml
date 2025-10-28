@@ -1,4 +1,5 @@
-name: Build Brave Browser
+name: Build Brave Browser (Multi-Platform)
+
 on:
   push:
     branches:
@@ -11,367 +12,171 @@ jobs:
   # ============================================================================
   
   linux-build-1:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: npm install
-        working-directory: ./.github/actions/cleanup-disk
-      - uses: ./.github/actions/cleanup-disk
-        with:
-          platform: linux
-      - run: npm install
-        working-directory: ./.github/actions/stage
-      - id: stage
-        uses: ./.github/actions/stage
-        with:
-          finished: false
-          from_artifact: false
-          platform: linux
-          arch: x64
-    outputs:
-      finished: ${{ steps.stage.outputs.finished }}
+    name: Linux x64 - Stage 1
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: linux
+      arch: x64
+      stage: 1
+      from_artifact: false
+      finished: 'false'
 
   linux-build-2:
+    name: Linux x64 - Stage 2
     needs: linux-build-1
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: npm install
-        working-directory: ./.github/actions/cleanup-disk
-      - uses: ./.github/actions/cleanup-disk
-        with:
-          platform: linux
-      - run: npm install
-        working-directory: ./.github/actions/stage
-      - id: stage
-        uses: ./.github/actions/stage
-        with:
-          finished: ${{ needs.linux-build-1.outputs.finished }}
-          from_artifact: true
-          platform: linux
-          arch: x64
-    outputs:
-      finished: ${{ steps.stage.outputs.finished }}
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: linux
+      arch: x64
+      stage: 2
+      from_artifact: true
+      finished: ${{ needs.linux-build-1.outputs.finished }}
 
   linux-build-3:
+    name: Linux x64 - Stage 3
     needs: linux-build-2
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: npm install
-        working-directory: ./.github/actions/cleanup-disk
-      - uses: ./.github/actions/cleanup-disk
-        with:
-          platform: linux
-      - run: npm install
-        working-directory: ./.github/actions/stage
-      - id: stage
-        uses: ./.github/actions/stage
-        with:
-          finished: ${{ needs.linux-build-2.outputs.finished }}
-          from_artifact: true
-          platform: linux
-          arch: x64
-    outputs:
-      finished: ${{ steps.stage.outputs.finished }}
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: linux
+      arch: x64
+      stage: 3
+      from_artifact: true
+      finished: ${{ needs.linux-build-2.outputs.finished }}
 
   linux-build-4:
+    name: Linux x64 - Stage 4
     needs: linux-build-3
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: npm install
-        working-directory: ./.github/actions/cleanup-disk
-      - uses: ./.github/actions/cleanup-disk
-        with:
-          platform: linux
-      - run: npm install
-        working-directory: ./.github/actions/stage
-      - id: stage
-        uses: ./.github/actions/stage
-        with:
-          finished: ${{ needs.linux-build-3.outputs.finished }}
-          from_artifact: true
-          platform: linux
-          arch: x64
-    outputs:
-      finished: ${{ steps.stage.outputs.finished }}
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: linux
+      arch: x64
+      stage: 4
+      from_artifact: true
+      finished: ${{ needs.linux-build-3.outputs.finished }}
 
   linux-build-5:
+    name: Linux x64 - Stage 5
     needs: linux-build-4
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: npm install
-        working-directory: ./.github/actions/cleanup-disk
-      - uses: ./.github/actions/cleanup-disk
-        with:
-          platform: linux
-      - run: npm install
-        working-directory: ./.github/actions/stage
-      - id: stage
-        uses: ./.github/actions/stage
-        with:
-          finished: ${{ needs.linux-build-4.outputs.finished }}
-          from_artifact: true
-          platform: linux
-          arch: x64
-    outputs:
-      finished: ${{ steps.stage.outputs.finished }}
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: linux
+      arch: x64
+      stage: 5
+      from_artifact: true
+      finished: ${{ needs.linux-build-4.outputs.finished }}
 
   linux-build-6:
+    name: Linux x64 - Stage 6
     needs: linux-build-5
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: npm install
-        working-directory: ./.github/actions/cleanup-disk
-      - uses: ./.github/actions/cleanup-disk
-        with:
-          platform: linux
-      - run: npm install
-        working-directory: ./.github/actions/stage
-      - id: stage
-        uses: ./.github/actions/stage
-        with:
-          finished: ${{ needs.linux-build-5.outputs.finished }}
-          from_artifact: true
-          platform: linux
-          arch: x64
-    outputs:
-      finished: ${{ steps.stage.outputs.finished }}
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: linux
+      arch: x64
+      stage: 6
+      from_artifact: true
+      finished: ${{ needs.linux-build-5.outputs.finished }}
 
   # ============================================================================
   # macOS Build Chain (6 stages) - Runs in parallel with Linux
   # ============================================================================
   
   macos-build-1:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: npm install
-        working-directory: ./.github/actions/cleanup-disk
-      - uses: ./.github/actions/cleanup-disk
-        with:
-          platform: macos
-      - run: npm install
-        working-directory: ./.github/actions/stage
-      - id: stage
-        uses: ./.github/actions/stage
-        with:
-          finished: false
-          from_artifact: false
-          platform: macos
-          arch: x64
-    outputs:
-      finished: ${{ steps.stage.outputs.finished }}
+    name: macOS x64 - Stage 1
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: macos
+      arch: x64
+      stage: 1
+      from_artifact: false
+      finished: 'false'
 
   macos-build-2:
+    name: macOS x64 - Stage 2
     needs: macos-build-1
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: npm install
-        working-directory: ./.github/actions/cleanup-disk
-      - uses: ./.github/actions/cleanup-disk
-        with:
-          platform: macos
-      - run: npm install
-        working-directory: ./.github/actions/stage
-      - id: stage
-        uses: ./.github/actions/stage
-        with:
-          finished: ${{ needs.macos-build-1.outputs.finished }}
-          from_artifact: true
-          platform: macos
-          arch: x64
-    outputs:
-      finished: ${{ steps.stage.outputs.finished }}
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: macos
+      arch: x64
+      stage: 2
+      from_artifact: true
+      finished: ${{ needs.macos-build-1.outputs.finished }}
 
   macos-build-3:
+    name: macOS x64 - Stage 3
     needs: macos-build-2
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: npm install
-        working-directory: ./.github/actions/cleanup-disk
-      - uses: ./.github/actions/cleanup-disk
-        with:
-          platform: macos
-      - run: npm install
-        working-directory: ./.github/actions/stage
-      - id: stage
-        uses: ./.github/actions/stage
-        with:
-          finished: ${{ needs.macos-build-2.outputs.finished }}
-          from_artifact: true
-          platform: macos
-          arch: x64
-    outputs:
-      finished: ${{ steps.stage.outputs.finished }}
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: macos
+      arch: x64
+      stage: 3
+      from_artifact: true
+      finished: ${{ needs.macos-build-2.outputs.finished }}
 
   macos-build-4:
+    name: macOS x64 - Stage 4
     needs: macos-build-3
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: npm install
-        working-directory: ./.github/actions/cleanup-disk
-      - uses: ./.github/actions/cleanup-disk
-        with:
-          platform: macos
-      - run: npm install
-        working-directory: ./.github/actions/stage
-      - id: stage
-        uses: ./.github/actions/stage
-        with:
-          finished: ${{ needs.macos-build-3.outputs.finished }}
-          from_artifact: true
-          platform: macos
-          arch: x64
-    outputs:
-      finished: ${{ steps.stage.outputs.finished }}
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: macos
+      arch: x64
+      stage: 4
+      from_artifact: true
+      finished: ${{ needs.macos-build-3.outputs.finished }}
 
   macos-build-5:
+    name: macOS x64 - Stage 5
     needs: macos-build-4
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: npm install
-        working-directory: ./.github/actions/cleanup-disk
-      - uses: ./.github/actions/cleanup-disk
-        with:
-          platform: macos
-      - run: npm install
-        working-directory: ./.github/actions/stage
-      - id: stage
-        uses: ./.github/actions/stage
-        with:
-          finished: ${{ needs.macos-build-4.outputs.finished }}
-          from_artifact: true
-          platform: macos
-          arch: x64
-    outputs:
-      finished: ${{ steps.stage.outputs.finished }}
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: macos
+      arch: x64
+      stage: 5
+      from_artifact: true
+      finished: ${{ needs.macos-build-4.outputs.finished }}
 
   macos-build-6:
+    name: macOS x64 - Stage 6
     needs: macos-build-5
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: npm install
-        working-directory: ./.github/actions/cleanup-disk
-      - uses: ./.github/actions/cleanup-disk
-        with:
-          platform: macos
-      - run: npm install
-        working-directory: ./.github/actions/stage
-      - id: stage
-        uses: ./.github/actions/stage
-        with:
-          finished: ${{ needs.macos-build-5.outputs.finished }}
-          from_artifact: true
-          platform: macos
-          arch: x64
-    outputs:
-      finished: ${{ steps.stage.outputs.finished }}
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: macos
+      arch: x64
+      stage: 6
+      from_artifact: true
+      finished: ${{ needs.macos-build-5.outputs.finished }}
 
   # ============================================================================
   # Publish Releases
   # ============================================================================
   
   publish-linux:
+    name: Publish Linux Release
     needs: linux-build-6
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
         with:
           name: brave-browser-linux
-      - uses: softprops/action-gh-release@v2
+      
+      - name: Publish Linux release to GitHub
+        uses: softprops/action-gh-release@v2
         with:
           fail_on_unmatched_files: true
           files: brave-*.tar.xz
 
   publish-macos:
+    name: Publish macOS Release
     needs: macos-build-6
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
         with:
           name: brave-browser-macos
-      - uses: softprops/action-gh-release@v2
+      
+      - name: Publish macOS release to GitHub
+        uses: softprops/action-gh-release@v2
         with:
           fail_on_unmatched_files: true
           files: brave-*.tar.xz

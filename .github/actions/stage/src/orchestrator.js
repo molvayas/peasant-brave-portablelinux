@@ -147,12 +147,16 @@ class BuildOrchestrator {
                 await exec.exec('brew', ['install', 'coreutils', 'ncdu'], {ignoreReturnCode: true});
             }
             
+            // Create platform-specific artifact name to avoid conflicts between parallel builds
+            const checkpointArtifactName = `${ARTIFACTS.BUILD_STATE}-${this.platform}-${this.arch}`;
+            
             // Extract multi-volume archive
+            console.log(`Extracting checkpoint artifact: ${checkpointArtifactName}...`);
             const tarCommand = this.builder.config.tarCommand || 'tar';
             await extractMultiVolumeArchive(
                 this.builder.paths.workDir,
                 this.artifact,
-                ARTIFACTS.BUILD_STATE,
+                checkpointArtifactName,
                 {tarCommand}
             );
 
@@ -246,11 +250,14 @@ class BuildOrchestrator {
         await waitAndSync(TIMEOUTS.CLEANUP_WAIT);
         await waitAndSync(TIMEOUTS.SYNC_WAIT);
         
+        // Create platform-specific artifact name to avoid conflicts between parallel builds
+        const checkpointArtifactName = `${ARTIFACTS.BUILD_STATE}-${this.platform}-${this.arch}`;
+        
         // Clean up previous artifacts
-        await cleanupPreviousArtifacts(this.artifact, ARTIFACTS.BUILD_STATE);
+        await cleanupPreviousArtifacts(this.artifact, checkpointArtifactName);
         
         // Create multi-volume archive
-        console.log('\nCreating multi-volume checkpoint artifact...');
+        console.log(`\nCreating multi-volume checkpoint artifact: ${checkpointArtifactName}...`);
         console.log('This will:');
         console.log('  1. Create 5GB tar volumes');
         console.log('  2. Compress each volume with zstd');
@@ -265,7 +272,7 @@ class BuildOrchestrator {
                 this.builder.paths.workDir,
                 ['src', 'build-stage.txt'],
                 this.artifact,
-                ARTIFACTS.BUILD_STATE,
+                checkpointArtifactName,
                 {tarCommand}
             );
             
