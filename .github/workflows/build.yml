@@ -8,10 +8,10 @@ on:
 
 jobs:
   # ============================================================================
-  # Linux Build Chain (6 stages)
+  # Linux x64 Build Chain (6 stages)
   # ============================================================================
   
-  linux-build-1:
+  linux-x64-build-1:
     name: Linux x64 - Stage 1
     uses: ./.github/workflows/builder.yml
     with:
@@ -21,66 +21,66 @@ jobs:
       from_artifact: false
       finished: 'false'
 
-  linux-build-2:
+  linux-x64-build-2:
     name: Linux x64 - Stage 2
-    needs: linux-build-1
+    needs: linux-x64-build-1
     uses: ./.github/workflows/builder.yml
     with:
       platform: linux
       arch: x64
       stage: 2
       from_artifact: true
-      finished: ${{ needs.linux-build-1.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-1.outputs.finished }}
 
-  linux-build-3:
+  linux-x64-build-3:
     name: Linux x64 - Stage 3
-    needs: linux-build-2
+    needs: linux-x64-build-2
     uses: ./.github/workflows/builder.yml
     with:
       platform: linux
       arch: x64
       stage: 3
       from_artifact: true
-      finished: ${{ needs.linux-build-2.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-2.outputs.finished }}
 
-  linux-build-4:
+  linux-x64-build-4:
     name: Linux x64 - Stage 4
-    needs: linux-build-3
+    needs: linux-x64-build-3
     uses: ./.github/workflows/builder.yml
     with:
       platform: linux
       arch: x64
       stage: 4
       from_artifact: true
-      finished: ${{ needs.linux-build-3.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-3.outputs.finished }}
 
-  linux-build-5:
+  linux-x64-build-5:
     name: Linux x64 - Stage 5
-    needs: linux-build-4
+    needs: linux-x64-build-4
     uses: ./.github/workflows/builder.yml
     with:
       platform: linux
       arch: x64
       stage: 5
       from_artifact: true
-      finished: ${{ needs.linux-build-4.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-4.outputs.finished }}
 
-  linux-build-6:
-    name: Linux x64 - Stage 6
-    needs: linux-build-5
+  linux-x64-build-6:
+    name: Linux x64 - Stage 6 (Final)
+    needs: linux-x64-build-5
     uses: ./.github/workflows/builder.yml
     with:
       platform: linux
       arch: x64
       stage: 6
       from_artifact: true
-      finished: ${{ needs.linux-build-5.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-5.outputs.finished }}
 
   # ============================================================================
-  # macOS Build Chain (6 stages) - Runs in parallel with Linux
+  # macOS x64 Build Chain (6 stages) - Runs in parallel with Linux
   # ============================================================================
   
-  macos-build-1:
+  macos-x64-build-1:
     name: macOS x64 - Stage 1
     uses: ./.github/workflows/builder.yml
     with:
@@ -90,93 +90,148 @@ jobs:
       from_artifact: false
       finished: 'false'
 
-  macos-build-2:
+  macos-x64-build-2:
     name: macOS x64 - Stage 2
-    needs: macos-build-1
+    needs: macos-x64-build-1
     uses: ./.github/workflows/builder.yml
     with:
       platform: macos
       arch: x64
       stage: 2
       from_artifact: true
-      finished: ${{ needs.macos-build-1.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-1.outputs.finished }}
 
-  macos-build-3:
+  macos-x64-build-3:
     name: macOS x64 - Stage 3
-    needs: macos-build-2
+    needs: macos-x64-build-2
     uses: ./.github/workflows/builder.yml
     with:
       platform: macos
       arch: x64
       stage: 3
       from_artifact: true
-      finished: ${{ needs.macos-build-2.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-2.outputs.finished }}
 
-  macos-build-4:
+  macos-x64-build-4:
     name: macOS x64 - Stage 4
-    needs: macos-build-3
+    needs: macos-x64-build-3
     uses: ./.github/workflows/builder.yml
     with:
       platform: macos
       arch: x64
       stage: 4
       from_artifact: true
-      finished: ${{ needs.macos-build-3.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-3.outputs.finished }}
 
-  macos-build-5:
+  macos-x64-build-5:
     name: macOS x64 - Stage 5
-    needs: macos-build-4
+    needs: macos-x64-build-4
     uses: ./.github/workflows/builder.yml
     with:
       platform: macos
       arch: x64
       stage: 5
       from_artifact: true
-      finished: ${{ needs.macos-build-4.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-4.outputs.finished }}
 
-  macos-build-6:
-    name: macOS x64 - Stage 6
-    needs: macos-build-5
+  macos-x64-build-6:
+    name: macOS x64 - Stage 6 (Final)
+    needs: macos-x64-build-5
     uses: ./.github/workflows/builder.yml
     with:
       platform: macos
       arch: x64
       stage: 6
       from_artifact: true
-      finished: ${{ needs.macos-build-5.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-5.outputs.finished }}
 
   # ============================================================================
-  # Publish Releases
+  # Collect All Artifacts - Waits for ALL builds to complete
   # ============================================================================
   
-  publish-linux:
-    name: Publish Linux Release
-    needs: linux-build-6
+  collect-artifacts:
+    name: Collect All Build Artifacts
+    needs: [linux-x64-build-6, macos-x64-build-6]
     runs-on: ubuntu-latest
     steps:
-      - name: Download Linux artifact
+      - name: Download Linux x64 artifact
         uses: actions/download-artifact@v4
         with:
           name: brave-browser-linux
+          path: ./artifacts/linux-x64
       
-      - name: Publish Linux release to GitHub
-        uses: softprops/action-gh-release@v2
-        with:
-          fail_on_unmatched_files: true
-          files: brave-*.tar.xz
-
-  publish-macos:
-    name: Publish macOS Release
-    needs: macos-build-6
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download macOS artifact
+      - name: Download macOS x64 artifact
         uses: actions/download-artifact@v4
         with:
           name: brave-browser-macos
+          path: ./artifacts/macos-x64
       
-      - name: Publish macOS release to GitHub
+      - name: List all artifacts
+        run: |
+          echo "=== All Build Artifacts ==="
+          find ./artifacts -type f -exec ls -lh {} \;
+          echo ""
+          echo "✓ All builds completed successfully!"
+          echo "✓ Ready for release approval"
+      
+      - name: Upload combined artifacts for release
+        uses: actions/upload-artifact@v4
+        with:
+          name: brave-browser-all-platforms
+          path: ./artifacts/
+          retention-days: 7
+
+  # ============================================================================
+  # Publish Release - Requires Manual Approval
+  # ============================================================================
+  
+  publish-release:
+    name: 📦 Publish Release (Requires Approval)
+    needs: collect-artifacts
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://github.com/${{ github.repository }}/releases
+    
+    steps:
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: brave-browser-all-platforms
+          path: ./release
+      
+      - name: Display release contents
+        run: |
+          echo "=== Release Contents ==="
+          find ./release -type f -exec ls -lh {} \;
+          echo ""
+          echo "Publishing to GitHub Releases..."
+      
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ github.run_number }}-${{ github.sha }}
+          name: Brave Browser Build ${{ github.run_number }}
+          body: |
+            ## Brave Browser - Multi-Platform Build
+            
+            **Build**: #${{ github.run_number }}
+            **Commit**: ${{ github.sha }}
+            **Date**: ${{ github.event.head_commit.timestamp }}
+            
+            ### Platforms Included:
+            - Linux x64
+            - macOS x64
+            
+            ### Installation
+            Download the appropriate package for your platform and extract it.
+          draft: false
+          prerelease: false
           fail_on_unmatched_files: true
-          files: brave-*.tar.xz
+          files: |
+            ./release/**/*.tar.xz
+      
+      - name: Release published
+        run: |
+          echo "✓ Release published successfully!"
+          echo "Check: https://github.com/${{ github.repository }}/releases"
