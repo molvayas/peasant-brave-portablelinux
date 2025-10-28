@@ -1,16 +1,30 @@
-name: 'Stage'
-description: 'Stage Brave build for Linux'
+name: 'Brave Build Stage'
+description: 'Multi-stage Brave browser build action with platform support'
+author: 'Brave Build Team'
+
 inputs:
   finished:
-    description: If a previous stage already finished the build, the stage will set all output variables to the input ones and exit
+    description: 'If a previous stage already finished the build, skip execution'
     required: true
+    default: 'false'
   from_artifact:
-    description: If a previous stage already uploaded build artifacts, the stage will resume building
+    description: 'Resume build from previously uploaded checkpoint artifact'
     required: true
+    default: 'false'
+  platform:
+    description: 'Target platform (linux, macos, windows)'
+    required: false
+    default: 'linux'
+  arch:
+    description: 'Target architecture (x64, arm64)'
+    required: false
+    default: 'x64'
+
 outputs:
   finished:
-    description: Whether the build has finished successfully
+    description: 'Whether the build has finished successfully'
+
 runs:
   using: 'node20'
-  main: 'index.js'
+  main: 'src/main.js'
 

@@ -5,8 +5,10 @@ async function run() {
     try {
         const buildDirLocation = '/home/runner';
         
-        console.log('=== Disk Space Management ===');
-        console.log(`Checking disk space for: ${buildDirLocation}`);
+        console.log('=== Runner Disk Space Cleanup ===');
+        console.log('Removing pre-installed tools from GitHub Actions runner');
+        console.log('(Source tree cleanup happens later in the build stage)');
+        console.log(`\nChecking disk space for: ${buildDirLocation}`);
         console.log('\nBEFORE cleanup:');
         await exec.exec('df', ['-h', buildDirLocation], {ignoreReturnCode: true});
         
