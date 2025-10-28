@@ -6,7 +6,6 @@ build-state.tar.zst
 *.tar.xz
 *.deb
 *.rpm
-src/
 out/
 .gclient
 .gclient_entries
