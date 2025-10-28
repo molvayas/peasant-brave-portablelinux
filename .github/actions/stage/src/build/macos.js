@@ -14,7 +14,8 @@ class MacOSBuilder {
         this.platform = 'macos';
         this.config = getPlatformConfig(this.platform);
         this.paths = getBuildPaths(this.platform);
-        this.jobStartTime = Date.now();
+        // jobStartTime will be set by orchestrator after construction
+        this.jobStartTime = null;
     }
 
     async initialize() {

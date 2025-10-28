@@ -28,8 +28,15 @@ class BuildOrchestrator {
         this.platform = options.platform || 'linux';
         this.arch = options.arch || 'x64';
         
+        // Track job start time for timeout calculations
+        // This is set at orchestrator creation (top of action run)
+        this.jobStartTime = Date.now();
+        
         this.artifact = new DefaultArtifactClient();
         this.builder = createBuilder(this.platform, this.braveVersion, this.arch);
+        
+        // Pass job start time to builder
+        this.builder.jobStartTime = this.jobStartTime;
         
         // Filter debug messages from artifact operations
         setupDebugFilter();

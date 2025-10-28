@@ -18,7 +18,8 @@ class LinuxBuilder {
         this.platform = 'linux';
         this.config = getPlatformConfig(this.platform);
         this.paths = getBuildPaths(this.platform);
-        this.jobStartTime = Date.now();
+        // jobStartTime will be set by orchestrator after construction
+        this.jobStartTime = null;
     }
 
     /**
@@ -74,7 +75,12 @@ class LinuxBuilder {
     async runBuild() {
         console.log('\n=== Stage: npm run build ===');
         
-        // Calculate timeout
+        // Calculate timeout based on time elapsed since job start
+        // This ensures we account for time spent on init, downloads, etc.
+        if (!this.jobStartTime) {
+            throw new Error('jobStartTime not set! Orchestrator must set this before calling runBuild()');
+        }
+        
         const timing = calculateBuildTimeout(
             this.jobStartTime,
             TIMEOUTS.MAX_BUILD_TIME,
