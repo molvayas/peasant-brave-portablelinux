@@ -9,5 +9,7 @@ build-state.tar.zst
 out/
 .gclient
 .gclient_entries
-build/
+# Ignore brave build directories, but NOT our source code in .github/actions/stage/src/build/
+/build/
+brave-build/
 
