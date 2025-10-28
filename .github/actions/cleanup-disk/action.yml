@@ -1,5 +1,10 @@
 name: 'Cleanup Disk'
-description: 'Free up disk space by removing unnecessary tools and packages'
+description: 'Free up disk space by removing unnecessary tools and packages (multi-platform)'
+inputs:
+  platform:
+    description: 'Target platform (linux, macos, windows)'
+    required: false
+    default: 'linux'
 runs:
   using: 'node20'
-  main: 'index.js'
+  main: 'src/main.js'

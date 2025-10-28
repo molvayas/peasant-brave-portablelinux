@@ -1,9 +1,15 @@
 {
-  "name": "brave-cleanup-disk-action-linux",
-  "version": "1.0.0",
-  "description": "Cleanup disk space before Brave build on Linux",
+  "name": "brave-cleanup-disk-action",
+  "version": "2.0.0",
+  "description": "Multi-platform disk cleanup action for Brave builds",
+  "main": "src/main.js",
+  "author": "Brave Build Team",
+  "license": "MIT",
   "dependencies": {
     "@actions/core": "^1.11.1",
     "@actions/exec": "^1.1.1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

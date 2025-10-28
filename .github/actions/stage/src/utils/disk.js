@@ -63,7 +63,9 @@ async function cleanupDirectories(srcDir, cleanupPaths) {
     }
     
     console.log('Checking disk space after cleanup:');
-    await exec.exec('df', ['-h', '/home/runner'], {ignoreReturnCode: true});
+    // Use HOME env var for cross-platform support
+    const homeDir = process.env.HOME || '/home/runner';
+    await exec.exec('df', ['-h', homeDir], {ignoreReturnCode: true});
     console.log('===========================================\n');
 }
 

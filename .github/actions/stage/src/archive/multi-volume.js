@@ -24,9 +24,11 @@ const SCRIPTS_DIR = path.join(__dirname, 'scripts');
  * @param {string[]} paths - Paths to include in archive (relative to workDir)
  * @param {object} artifact - Artifact client for uploads
  * @param {string} artifactName - Name for artifact uploads
+ * @param {object} options - Options including tarCommand (default: 'tar')
  * @returns {Promise<number>} Number of volumes created
  */
-async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifact, artifactName) {
+async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifact, artifactName, options = {}) {
+    const tarCommand = options.tarCommand || 'tar';
     console.log('=== Creating Multi-Volume Archive ===');
     console.log(`Base name: ${archiveBaseName}`);
     console.log(`Working directory: ${workDir}`);
@@ -60,8 +62,8 @@ async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifac
     );
     
     // Start tar process with multi-volume flags
-    console.log('[Tar] Starting tar command...');
-    const tarExitCode = await exec.exec('tar', [
+    console.log(`[Tar] Starting tar command (using ${tarCommand})...`);
+    const tarExitCode = await exec.exec(tarCommand, [
         '-cM',  // Create multi-volume archive
         '-L', ARCHIVE.VOLUME_SIZE,  // Volume size (e.g., '5G')
         '-F', volumeScriptPath,  // Script for new volumes
@@ -106,8 +108,10 @@ async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifac
  * @param {string} workDir - Working directory for extraction
  * @param {object} artifact - Artifact client for downloads
  * @param {string} artifactName - Base name for artifacts
+ * @param {object} options - Options including tarCommand (default: 'tar')
  */
-async function extractMultiVolumeArchive(workDir, artifact, artifactName) {
+async function extractMultiVolumeArchive(workDir, artifact, artifactName, options = {}) {
+    const tarCommand = options.tarCommand || 'tar';
     console.log('=== Extracting Multi-Volume Archive ===');
     
     const tempDir = path.join(workDir, 'extract-temp');
@@ -148,9 +152,9 @@ async function extractMultiVolumeArchive(workDir, artifact, artifactName) {
     
     // Extract using multi-volume mode
     console.log('\n=== Extracting Multi-Volume Archive ===');
-    console.log('tar will download subsequent volumes on-demand via the info script...');
+    console.log(`Using ${tarCommand} to download subsequent volumes on-demand via the info script...`);
     
-    await exec.exec('tar', ['-xM', '-f', firstVolumePath, '-F', extractScriptPath, '-C', workDir]);
+    await exec.exec(tarCommand, ['-xM', '-f', firstVolumePath, '-F', extractScriptPath, '-C', workDir]);
     
     console.log('✓ Extraction complete');
     

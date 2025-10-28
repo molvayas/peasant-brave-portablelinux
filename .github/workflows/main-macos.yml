@@ -1,23 +1,20 @@
-name: Build Brave Browser (Linux)
+name: Build Brave Browser (macOS)
 on:  
   push:
     branches:
       - main
   workflow_dispatch:
 
-# NOTE: For multi-platform builds, use build.yml instead
-# This workflow is kept for backward compatibility and Linux-only builds
-
 jobs:
   build-1:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
@@ -28,7 +25,7 @@ jobs:
       - name: Cleanup Disk
         uses: ./.github/actions/cleanup-disk
         with:
-          platform: linux
+          platform: macos
       - name: Setup Stage
         run: npm install
         working-directory: ./.github/actions/stage
@@ -38,19 +35,20 @@ jobs:
         with:
           finished: false
           from_artifact: false
+          platform: macos
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
 
   build-2:
     needs: build-1
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
@@ -61,7 +59,7 @@ jobs:
       - name: Cleanup Disk
         uses: ./.github/actions/cleanup-disk
         with:
-          platform: linux
+          platform: macos
       - name: Setup Stage
         run: npm install
         working-directory: ./.github/actions/stage
@@ -71,19 +69,20 @@ jobs:
         with:
           finished: ${{ needs.build-1.outputs.finished }}
           from_artifact: true
+          platform: macos
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
 
   build-3:
     needs: build-2
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
@@ -94,7 +93,7 @@ jobs:
       - name: Cleanup Disk
         uses: ./.github/actions/cleanup-disk
         with:
-          platform: linux
+          platform: macos
       - name: Setup Stage
         run: npm install
         working-directory: ./.github/actions/stage
@@ -104,19 +103,20 @@ jobs:
         with:
           finished: ${{ needs.build-2.outputs.finished }}
           from_artifact: true
+          platform: macos
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
 
   build-4:
     needs: build-3
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
@@ -127,7 +127,7 @@ jobs:
       - name: Cleanup Disk
         uses: ./.github/actions/cleanup-disk
         with:
-          platform: linux
+          platform: macos
       - name: Setup Stage
         run: npm install
         working-directory: ./.github/actions/stage
@@ -137,19 +137,20 @@ jobs:
         with:
           finished: ${{ needs.build-3.outputs.finished }}
           from_artifact: true
+          platform: macos
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
 
   build-5:
     needs: build-4
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
@@ -160,7 +161,7 @@ jobs:
       - name: Cleanup Disk
         uses: ./.github/actions/cleanup-disk
         with:
-          platform: linux
+          platform: macos
       - name: Setup Stage
         run: npm install
         working-directory: ./.github/actions/stage
@@ -170,19 +171,20 @@ jobs:
         with:
           finished: ${{ needs.build-4.outputs.finished }}
           from_artifact: true
+          platform: macos
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
 
   build-6:
     needs: build-5
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
@@ -193,7 +195,7 @@ jobs:
       - name: Cleanup Disk
         uses: ./.github/actions/cleanup-disk
         with:
-          platform: linux
+          platform: macos
       - name: Setup Stage
         run: npm install
         working-directory: ./.github/actions/stage
@@ -203,21 +205,22 @@ jobs:
         with:
           finished: ${{ needs.build-5.outputs.finished }}
           from_artifact: true
+          platform: macos
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
 
   publish-release:
     needs: build-6
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Download package
         uses: actions/download-artifact@v4
         with:
-          name: brave-browser-linux
+          name: brave-browser-macos
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           fail_on_unmatched_files: true
           files: |
-            brave-browser-*.tar.xz
+            brave-out-*.tar.xz
 

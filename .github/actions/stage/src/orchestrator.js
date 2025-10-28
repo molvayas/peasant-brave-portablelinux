@@ -135,23 +135,33 @@ class BuildOrchestrator {
         console.log('Restoring build environment from artifact...');
         
         try {
-            // Install zstd for decompression
-            console.log('Installing zstd for decompression...');
             const exec = require('@actions/exec');
-            await exec.exec('sudo', ['apt-get', 'update'], {ignoreReturnCode: true});
-            await exec.exec('sudo', ['apt-get', 'install', '-y', 'zstd', 'ncdu'], {ignoreReturnCode: true});
+            
+            // Platform-specific dependency installation
+            if (this.platform === 'linux') {
+                console.log('Installing zstd and ncdu for decompression (Linux)...');
+                await exec.exec('sudo', ['apt-get', 'update'], {ignoreReturnCode: true});
+                await exec.exec('sudo', ['apt-get', 'install', '-y', 'zstd', 'ncdu'], {ignoreReturnCode: true});
+            } else if (this.platform === 'macos') {
+                console.log('Installing dependencies via Homebrew (macOS)...');
+                await exec.exec('brew', ['install', 'coreutils', 'ncdu'], {ignoreReturnCode: true});
+            }
             
             // Extract multi-volume archive
+            const tarCommand = this.builder.config.tarCommand || 'tar';
             await extractMultiVolumeArchive(
                 this.builder.paths.workDir,
                 this.artifact,
-                ARTIFACTS.BUILD_STATE
+                ARTIFACTS.BUILD_STATE,
+                {tarCommand}
             );
 
-            // Install build dependencies
-            console.log('Installing build dependencies...');
-            const buildDepsScript = path.join(this.builder.paths.srcDir, 'build', 'install-build-deps.sh');
-            await exec.exec('sudo', [buildDepsScript, '--no-prompt'], {ignoreReturnCode: true});
+            // Install build dependencies (Linux only)
+            if (this.platform === 'linux') {
+                console.log('Installing Chromium build dependencies...');
+                const buildDepsScript = path.join(this.builder.paths.srcDir, 'build', 'install-build-deps.sh');
+                await exec.exec('sudo', [buildDepsScript, '--no-prompt'], {ignoreReturnCode: true});
+            }
 
         } catch (e) {
             console.error(`Failed to restore from artifact: ${e.message}`);
@@ -249,12 +259,14 @@ class BuildOrchestrator {
         console.log('  5. Repeat for each volume\n');
         
         try {
+            const tarCommand = this.builder.config.tarCommand || 'tar';
             const volumeCount = await createMultiVolumeArchive(
                 'build-state',
                 this.builder.paths.workDir,
                 ['src', 'build-stage.txt'],
                 this.artifact,
-                ARTIFACTS.BUILD_STATE
+                ARTIFACTS.BUILD_STATE,
+                {tarCommand}
             );
             
             console.log(`\n✓ Successfully created and uploaded ${volumeCount} volume(s)`);

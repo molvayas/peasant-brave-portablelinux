@@ -47,11 +47,13 @@ const PLATFORMS = {
         nodeModulesCache: '/Users/runner/.npm',
         outputDirName: 'Component',
         executable: 'Brave Browser.app',
-        packageFormat: 'dmg',
-        dependencies: [],
+        packageFormat: 'tar.xz',
+        tarCommand: 'gtar',  // Use GNU tar on macOS
+        dependencies: [],  // Installed via brew in builder
         cleanupDirs: [
             'ios',
-            'third_party/jdk'
+            'third_party/jdk',
+            'third_party/android_*'
         ]
     },
     windows: {

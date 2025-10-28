@@ -24,9 +24,12 @@ async function run() {
         const platform = core.getInput('platform') || 'linux';
         const arch = core.getInput('arch') || 'x64';
         
-        // Determine repository path based on platform
-        // TODO: Make this more flexible/configurable
-        const repoPath = '/home/runner/work/peasant-brave-portablelinux/peasant-brave-portablelinux';
+        // Determine repository path using GITHUB_WORKSPACE (works on all platforms)
+        const repoPath = process.env.GITHUB_WORKSPACE;
+        
+        if (!repoPath) {
+            throw new Error('GITHUB_WORKSPACE environment variable not set!');
+        }
         
         // Read Brave version from repository
         const braveVersion = await readBraveVersion(repoPath);

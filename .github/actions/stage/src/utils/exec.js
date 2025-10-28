@@ -5,22 +5,23 @@
 const exec = require('@actions/exec');
 
 /**
- * Run a command with timeout using Linux native timeout command
+ * Run a command with timeout using platform-specific timeout command
  * @param {string} command - Command to run
  * @param {string[]} args - Command arguments
- * @param {object} options - Options including cwd and timeoutSeconds
+ * @param {object} options - Options including cwd, timeoutSeconds, and useGTimeout
  * @returns {Promise<number>} Exit code (124 if timeout, per timeout command convention)
  */
 async function execWithTimeout(command, args, options = {}) {
-    const {cwd, timeoutSeconds} = options;
+    const {cwd, timeoutSeconds, useGTimeout = false} = options;
     
     console.log(`Running: ${command} ${args.join(' ')}`);
     console.log(`Timeout: ${(timeoutSeconds / 60).toFixed(0)} minutes (${(timeoutSeconds / 3600).toFixed(2)} hours)`);
     
-    // Use Linux native timeout command
+    // Use gtimeout on macOS (from coreutils), timeout on Linux
     // -k 5m: Send SIGKILL if process doesn't die within 5 minutes after initial signal
     // -s INT: Send SIGINT (graceful, like Ctrl+C) as initial signal
     // Exit code 124: timeout occurred
+    const timeoutCmd = useGTimeout ? 'gtimeout' : 'timeout';
     const timeoutArgs = [
         '-k', '5m',           // Kill after 5 min if not responding
         '-s', 'INT',          // Send SIGINT first (graceful)
@@ -29,7 +30,7 @@ async function execWithTimeout(command, args, options = {}) {
         ...args
     ];
     
-    const exitCode = await exec.exec('timeout', timeoutArgs, {
+    const exitCode = await exec.exec(timeoutCmd, timeoutArgs, {
         cwd: cwd,
         ignoreReturnCode: true
     });
@@ -54,8 +55,6 @@ function calculateBuildTimeout(jobStartTime, maxBuildTime, minBuildTime) {
     
     // Apply minimum timeout
     remainingTime = Math.max(remainingTime, minBuildTime);
-
-    remainingTime = 11*60*1000;
     
     const timeoutSeconds = Math.floor(remainingTime / 1000);
     

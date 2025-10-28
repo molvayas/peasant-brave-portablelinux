@@ -1,0 +1,10 @@
+{
+  "name": "brave-cleanup-disk-action-macos",
+  "version": "1.0.0",
+  "description": "Cleanup disk space before Brave build on macOS",
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/exec": "^1.1.1"
+  }
+}
+
