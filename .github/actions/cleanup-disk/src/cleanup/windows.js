@@ -3,47 +3,61 @@
  */
 
 const exec = require('@actions/exec');
+const core = require('@actions/core');
+const {DefaultArtifactClient} = require('@actions/artifact');
+const fs = require('fs').promises;
+const path = require('path');
 
 class WindowsCleanup {
     constructor() {
         this.buildDirLocation = 'C:\\';
+        this.artifact = new DefaultArtifactClient();
     }
 
     async showDiskSpace(indent = '') {
         await exec.exec('powershell', ['-Command', 'Get-Volume | Format-Table -AutoSize'], {ignoreReturnCode: true});
     }
 
-    async _runDiskUsageAnalysis() {
-        console.log('\nScanning directory sizes on C: (ncdu style, up to 5 levels deep)...');
-        const psCommand = `
-          Get-ChildItem -Path C:\\ -Directory | ForEach-Object {
-            Write-Host "========================================" -ForegroundColor Green
-            Write-Host "Disk usage for $($_.FullName) (up to 5 levels deep)" -ForegroundColor Green
-            Write-Host "========================================" -ForegroundColor Green
-            & "C:\\Program Files\\Git\\usr\\bin\\du.exe" -h --max-depth=4 $_.FullName
-            Write-Host ""
-          }
-        `;
-        await exec.exec('powershell', ['-Command', psCommand], {ignoreReturnCode: true});
-        console.log('===========================\n');
+    async _runGduAnalysisAndUpload(artifactName, drive) {
+        const reportFile = `gdu-report-${drive}.txt`;
+        const reportPath = path.join(process.env.RUNNER_TEMP, reportFile);
+        
+        console.log(`\nRunning gdu scan on ${drive}: drive...`);
+        await exec.exec('gdu', ['-n', '-o', reportPath, `${drive}:\\`], {
+            ignoreReturnCode: true
+        });
+
+        console.log(`Uploading ${artifactName} artifact...`);
+        try {
+            await this.artifact.uploadArtifact(
+                artifactName,
+                [reportPath],
+                process.env.RUNNER_TEMP
+            );
+            await fs.unlink(reportPath);
+        } catch (e) {
+            core.warning(`Failed to upload artifact ${artifactName}: ${e.message}`);
+        }
     }
 
     async run() {
         console.log('=== Runner Disk Space Cleanup (Windows) ===');
-        console.log('Removing pre-installed tools from GitHub Actions runner');
-        console.log('(Source tree cleanup happens later in the build stage)');
-        console.log(`\nChecking disk space for: ${this.buildDirLocation}`);
+        
+        console.log('Installing gdu via winget...');
+        await exec.exec('winget', ['install', '--id=dundee.gdu', '-e'], {
+            ignoreReturnCode: true
+        });
+
         console.log('\nBEFORE cleanup:');
         await this.showDiskSpace();
-        await this._runDiskUsageAnalysis();
-        
+        await this._runGduAnalysisAndUpload('disk-usage-before-windows-C', 'C');
+        await this._runGduAnalysisAndUpload('disk-usage-before-windows-D', 'D');
+
         console.log('\nFreeing disk space on runner...\n');
         
-        // Create empty directory for robocopy trick
         const emptyDir = 'C:\\empty_temp_dir';
         await exec.exec('cmd', ['/c', 'mkdir', emptyDir], {ignoreReturnCode: true});
         
-        // Define cleanup targets with names
         const cleanupDirs = [
             {path: 'C:\\Program Files (x86)\\Android', name: 'Android SDK'},
             {path: 'C:\\ghcup', name: 'Haskell toolchain'},
@@ -53,36 +67,18 @@ class WindowsCleanup {
             {path: 'C:\\mingw64', name: 'MinGW64'},
             {path: 'C:\\mingw32', name: 'MinGW32'},
             {path: 'C:\\Strawberry', name: 'Strawberry Perl'}
-            // NOTE: Don't remove C:\\msys64 - we need GNU tar and zstd from here
         ];
         
-        // Remove each directory with before/after
-        // Use robocopy /MIR trick - MUCH faster than rd or Remove-Item for large directories
         for (const {path: dir, name} of cleanupDirs) {
             console.log(`Removing ${name} (${dir})...`);
-            console.log('  Before:');
-            await this.showDiskSpace('  ');
-            
-            // Robocopy trick: mirror empty dir to target (deletes everything), then remove both
-            // /MIR = mirror, /R:0 = no retries, /W:0 = no wait
-            // /MT:8 = 8 threads (optimal for GitHub 4-core runners)
-            // /LOG:NUL = don't generate log (faster)
             await exec.exec('robocopy', [
                 emptyDir, dir,
                 '/MIR', '/R:0', '/W:0', '/MT:8', '/LOG:NUL'
             ], {ignoreReturnCode: true});
             await exec.exec('cmd', ['/c', 'rmdir', dir], {ignoreReturnCode: true});
-            
-            console.log('  After:');
-            await this.showDiskSpace('  ');
-            console.log('');
         }
         
-        // Try Docker system prune
         console.log('Pruning Docker (docker system prune -a)...');
-        console.log('  Before:');
-        await this.showDiskSpace('  ');
-        
         try {
             await exec.exec('docker', ['system', 'prune', '-a', '-f', '--volumes'], {
                 ignoreReturnCode: true
@@ -91,15 +87,6 @@ class WindowsCleanup {
             console.log('  Docker not available or prune failed');
         }
         
-        console.log('  After:');
-        await this.showDiskSpace('  ');
-        
-        // Remove Docker data directory after prune
-        console.log('\nRemoving Docker data directory (C:\\ProgramData\\docker)...');
-        console.log('  Before:');
-        await this.showDiskSpace('  ');
-        
-        // Use robocopy trick for Docker directory too
         const dockerDir = 'C:\\ProgramData\\docker';
         await exec.exec('robocopy', [
             emptyDir, dockerDir,
@@ -107,22 +94,15 @@ class WindowsCleanup {
         ], {ignoreReturnCode: true});
         await exec.exec('cmd', ['/c', 'rmdir', dockerDir], {ignoreReturnCode: true});
         
-        console.log('  After:');
-        await this.showDiskSpace('  ');
-        
-        // Clean up empty directory
         await exec.exec('cmd', ['/c', 'rmdir', emptyDir], {ignoreReturnCode: true});
         
         console.log('\n✓ Cleanup complete');
         console.log(`FINAL disk space available for ${this.buildDirLocation}:`);
         await this.showDiskSpace();
-        console.log('===========================\n');
 
         console.log('=== Disk Usage Analysis (After Cleanup) ===');
-        console.log('\nListing all mounted drives and free space:');
-        await this.showDiskSpace();
-
-        await this._runDiskUsageAnalysis();
+        await this._runGduAnalysisAndUpload('disk-usage-after-windows-C', 'C');
+        await this._runGduAnalysisAndUpload('disk-usage-after-windows-D', 'D');
     }
 }
 

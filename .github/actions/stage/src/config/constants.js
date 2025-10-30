@@ -58,7 +58,7 @@ const PLATFORMS = {
     },
     windows: {
         runner: 'windows-latest',
-        workDir: 'C:\\brave-build',
+        workDir: 'D:\\brave-build',
         nodeModulesCache: 'C:\\Users\\runner\\.npm',
         outputDirName: 'Component',
         executable: 'brave.exe',
