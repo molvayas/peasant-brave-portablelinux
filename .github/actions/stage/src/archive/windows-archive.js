@@ -27,7 +27,7 @@ async function createWindowsCheckpoint(workDir, paths, artifact, artifactName) {
     const artifactPath = path.join(workDir, 'artifacts.7z');
     
     console.log('Creating 7z archive...');
-    console.log('This may take 10-20 minutes depending on build state size');
+    console.log('This may take 30-50 minutes depending on build state size');
     
     // Build list of paths to archive
     const fullPaths = paths.map(p => path.join(workDir, p));
@@ -42,10 +42,10 @@ async function createWindowsCheckpoint(workDir, paths, artifact, artifactName) {
         'a', '-t7z',
         artifactPath,
         ...fullPaths,
-        '-mx=9',
+        '-mx=3',
         '-mtc=on',
-        '-mmt=1',
-        '-m0=LZMA2:d1536m:fb64'
+        '-mmt=4',
+        '-m0=LZMA2:d256m:fb64'
     ], {ignoreReturnCode: true});
     
     console.log('✓ 7z archive created');

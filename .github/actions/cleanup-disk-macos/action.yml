@@ -1,6 +1,0 @@
-name: 'Cleanup Disk (macOS)'
-description: 'Free up disk space by removing unnecessary simulator runtimes and SDKs'
-runs:
-  using: 'node20'
-  main: 'index.js'
-

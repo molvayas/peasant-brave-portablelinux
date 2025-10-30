@@ -56,8 +56,6 @@ function calculateBuildTimeout(jobStartTime, maxBuildTime, minBuildTime) {
     // Apply minimum timeout
     remainingTime = Math.max(remainingTime, minBuildTime);
 
-    remainingTime = 11*60*1000
-    
     const timeoutSeconds = Math.floor(remainingTime / 1000);
     
     return {
