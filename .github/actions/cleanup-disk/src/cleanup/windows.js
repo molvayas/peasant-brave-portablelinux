@@ -45,9 +45,34 @@ class WindowsCleanup {
         const reportPath = path.join(process.env.RUNNER_TEMP, reportFile);
         
         console.log(`\nRunning gdu scan on ${drive}: drive...`);
-        await exec.exec('gdu', ['-n', '-o', reportPath, `${drive}:\\`], {
-            ignoreReturnCode: true
-        });
+
+        let gduError = '';
+        const options = {
+            ignoreReturnCode: true, // Continue even if gdu fails on some dirs
+            listeners: {
+                stderr: (data) => {
+                    gduError += data.toString();
+                }
+            }
+        };
+
+        const exitCode = await exec.exec('gdu', ['-n', '-a', '-o', reportPath, `${drive}:\\`], options);
+
+        if (gduError) {
+            console.log('gdu encountered errors (this is expected for protected directories):');
+            // Log only a summary of errors to avoid flooding the console
+            const errorLines = gduError.split('\n').filter(line => line.includes('level=warning'));
+            if (errorLines.length > 10) {
+                console.log(errorLines.slice(0, 10).join('\n'));
+                console.log(`... and ${errorLines.length - 10} more permission errors.`);
+            } else {
+                console.log(gduError);
+            }
+        }
+        
+        if (exitCode !== 0) {
+            core.warning(`gdu exited with code ${exitCode}. The report may be incomplete due to permission errors, which is expected.`);
+        }
 
         console.log(`Uploading ${artifactName} artifact...`);
         try {
