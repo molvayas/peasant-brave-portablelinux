@@ -15,6 +15,21 @@ class WindowsCleanup {
         ], {ignoreReturnCode: true});
     }
 
+    async _runDiskUsageAnalysis() {
+        console.log('\nScanning directory sizes on C: (ncdu style, up to 5 levels deep)...');
+        const psCommand = `
+          Get-ChildItem -Path C:\\ -Directory | ForEach-Object {
+            Write-Host "========================================" -ForegroundColor Green
+            Write-Host "Disk usage for $($_.FullName) (up to 5 levels deep)" -ForegroundColor Green
+            Write-Host "========================================" -ForegroundColor Green
+            & "C:\\Program Files\\Git\\usr\\bin\\du.exe" -h --max-depth=4 $_.FullName
+            Write-Host ""
+          }
+        `;
+        await exec.exec('powershell', ['-Command', psCommand], {ignoreReturnCode: true});
+        console.log('===========================\n');
+    }
+
     async run() {
         console.log('=== Runner Disk Space Cleanup (Windows) ===');
         console.log('Removing pre-installed tools from GitHub Actions runner');
@@ -22,6 +37,7 @@ class WindowsCleanup {
         console.log(`\nChecking disk space for: ${this.buildDirLocation}`);
         console.log('\nBEFORE cleanup:');
         await this.showDiskSpace();
+        await this._runDiskUsageAnalysis();
         
         console.log('\nFreeing disk space on runner...\n');
         
@@ -103,6 +119,12 @@ class WindowsCleanup {
         console.log(`FINAL disk space available for ${this.buildDirLocation}:`);
         await this.showDiskSpace();
         console.log('===========================\n');
+
+        console.log('=== Disk Usage Analysis (After Cleanup) ===');
+        console.log('\nListing all mounted drives and free space:');
+        await exec.exec('powershell', ['-Command', 'Get-Volume | Format-Table -AutoSize'], {ignoreReturnCode: true});
+
+        await this._runDiskUsageAnalysis();
     }
 }
 
