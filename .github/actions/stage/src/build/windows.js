@@ -290,48 +290,32 @@ class WindowsBuilder {
                 console.log('Sending graceful shutdown signal to allow ninja to save build state...');
                 killed = true;
                 
-                // Send termination signal gracefully (similar to Ctrl+C)
-                // taskkill without /F is gentler and gives processes time to cleanup
-                // Following Python's pattern: 3 attempts with short waits
+                // Phase 1: Send graceful termination signals
+                // taskkill without /F asks processes to exit cleanly
                 try {
-                    console.log(`Attempt 1/3: Sending termination signal to PID ${child.pid}...`);
-                    child_process.execSync(`taskkill /T /PID ${child.pid}`, {stdio: 'inherit'});
-                    await new Promise(r => setTimeout(r, 2000)); // 2 seconds
-                    
-                    console.log(`Attempt 2/3: Sending termination signal to PID ${child.pid}...`);
-                    child_process.execSync(`taskkill /T /PID ${child.pid}`, {stdio: 'inherit'});
-                    await new Promise(r => setTimeout(r, 2000)); // 2 seconds
-                    
-                    console.log(`Attempt 3/3: Sending termination signal to PID ${child.pid}...`);
+                    console.log(`Sending termination signal to process tree (PID ${child.pid})...`);
                     child_process.execSync(`taskkill /T /PID ${child.pid}`, {stdio: 'inherit'});
                     
-                    // Wait 15 seconds for ninja to finish writing state files
-                    console.log('Waiting 15 seconds for build system to save state...');
-                    await new Promise(r => setTimeout(r, 15000));
+                    // Give ninja TIME to:
+                    // - Stop accepting new jobs
+                    // - Finish current compilation tasks
+                    // - Write .ninja_deps and .ninja_log
+                    // - Close all file handles
+                    console.log('Waiting 45 seconds for ninja to finish current tasks and save state...');
+                    await new Promise(r => setTimeout(r, 45000));
                     
                 } catch (e) {
                     console.log(`Termination signal sent (or process already exited)`);
                 }
                 
-                // Extra safeguard: Kill any lingering npm/node/ninja processes by name
-                // This handles cases where processes escape the tree
+                // Phase 2: Force kill the process tree
+                // By now ninja should have saved state, so we can force kill
                 try {
-                    console.log('Checking for any lingering build processes...');
-                    child_process.execSync('taskkill /IM node.exe /F 2>nul', {stdio: 'inherit'});
-                    child_process.execSync('taskkill /IM ninja.exe /F 2>nul', {stdio: 'inherit'});
-                    child_process.execSync('taskkill /IM cl.exe /F 2>nul', {stdio: 'inherit'});
-                    child_process.execSync('taskkill /IM link.exe /F 2>nul', {stdio: 'inherit'});
-                    console.log('Lingering process cleanup complete');
-                } catch (e) {
-                    // Expected if no such processes exist
-                    console.log('No lingering processes found');
-                }
-                
-                // Final force kill of original tree if somehow still alive
-                try {
+                    console.log('Force terminating process tree...');
                     child_process.execSync(`taskkill /T /F /PID ${child.pid}`, {stdio: 'inherit'});
+                    console.log('Process tree terminated');
                 } catch (e) {
-                    // Process already exited
+                    console.log('Process already exited');
                 }
             }, timeout);
             
