@@ -13,6 +13,16 @@ on:
         required: true
         type: boolean
         default: true
+      build_windows_x64:
+        description: 'Build Windows x64'
+        required: true
+        type: boolean
+        default: false
+      build_windows_arm64:
+        description: 'Build Windows arm64'
+        required: true
+        type: boolean
+        default: false
       build_linux_arm64:
         description: 'Build Linux arm64'
         required: true
@@ -186,6 +196,81 @@ jobs:
       finished: ${{ needs.macos-x64-build-5.outputs.finished }}
 
   # ============================================================================
+  # Windows x64 Build Chain (6 stages) - Runs in parallel
+  # ============================================================================
+  
+  windows-x64-build-1:
+    name: Windows x64 - Stage 1
+    if: ${{ inputs.build_windows_x64 }}
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x64
+      stage: 1
+      from_artifact: false
+      finished: 'false'
+
+  windows-x64-build-2:
+    name: Windows x64 - Stage 2
+    if: ${{ inputs.build_windows_x64 }}
+    needs: windows-x64-build-1
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x64
+      stage: 2
+      from_artifact: true
+      finished: ${{ needs.windows-x64-build-1.outputs.finished }}
+
+  windows-x64-build-3:
+    name: Windows x64 - Stage 3
+    if: ${{ inputs.build_windows_x64 }}
+    needs: windows-x64-build-2
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x64
+      stage: 3
+      from_artifact: true
+      finished: ${{ needs.windows-x64-build-2.outputs.finished }}
+
+  windows-x64-build-4:
+    name: Windows x64 - Stage 4
+    if: ${{ inputs.build_windows_x64 }}
+    needs: windows-x64-build-3
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x64
+      stage: 4
+      from_artifact: true
+      finished: ${{ needs.windows-x64-build-3.outputs.finished }}
+
+  windows-x64-build-5:
+    name: Windows x64 - Stage 5
+    if: ${{ inputs.build_windows_x64 }}
+    needs: windows-x64-build-4
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x64
+      stage: 5
+      from_artifact: true
+      finished: ${{ needs.windows-x64-build-4.outputs.finished }}
+
+  windows-x64-build-6:
+    name: Windows x64 - Stage 6 (Final)
+    if: ${{ inputs.build_windows_x64 }}
+    needs: windows-x64-build-5
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x64
+      stage: 6
+      from_artifact: true
+      finished: ${{ needs.windows-x64-build-5.outputs.finished }}
+
+  # ============================================================================
   # Linux arm64 Build Chain (6 stages) - Optional
   # ============================================================================
   
@@ -341,7 +426,7 @@ jobs:
   
   collect-artifacts:
     name: Collect All Build Artifacts
-    needs: [linux-x64-build-6, macos-x64-build-6, linux-arm64-build-6, macos-arm64-build-6]
+    needs: [linux-x64-build-6, macos-x64-build-6, windows-x64-build-6, linux-arm64-build-6, macos-arm64-build-6]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -360,6 +445,14 @@ jobs:
         with:
           name: brave-browser-macos
           path: ./artifacts/macos-x64
+      
+      - name: Download Windows x64 artifact
+        if: ${{ inputs.build_windows_x64 }}
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: brave-browser-windows
+          path: ./artifacts/windows-x64
       
       - name: Download Linux arm64 artifact
         if: ${{ inputs.build_linux_arm64 }}
@@ -433,6 +526,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- Linux x64: ${{ inputs.build_linux_x64 }}" >> $GITHUB_STEP_SUMMARY
           echo "- macOS x64: ${{ inputs.build_macos_x64 }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Windows x64: ${{ inputs.build_windows_x64 }}" >> $GITHUB_STEP_SUMMARY
           echo "- Linux arm64: ${{ inputs.build_linux_arm64 }}" >> $GITHUB_STEP_SUMMARY
           echo "- macOS arm64: ${{ inputs.build_macos_arm64 }}" >> $GITHUB_STEP_SUMMARY
           echo "- Publishing release: ${{ inputs.publish_release }}" >> $GITHUB_STEP_SUMMARY
@@ -441,6 +535,7 @@ jobs:
           PLATFORMS=""
           ${{ inputs.build_linux_x64 }} && PLATFORMS="${PLATFORMS}- Linux x64\n"
           ${{ inputs.build_macos_x64 }} && PLATFORMS="${PLATFORMS}- macOS x64\n"
+          ${{ inputs.build_windows_x64 }} && PLATFORMS="${PLATFORMS}- Windows x64\n"
           ${{ inputs.build_linux_arm64 }} && PLATFORMS="${PLATFORMS}- Linux arm64\n"
           ${{ inputs.build_macos_arm64 }} && PLATFORMS="${PLATFORMS}- macOS arm64\n"
           echo "platforms<<EOF" >> $GITHUB_OUTPUT
@@ -470,6 +565,7 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             ./release/**/*.tar.xz
+            ./release/**/*.zip
       
       - name: Release published
         run: |

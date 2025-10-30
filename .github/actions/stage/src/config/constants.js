@@ -63,7 +63,8 @@ const PLATFORMS = {
         outputDirName: 'Component',
         executable: 'brave.exe',
         packageFormat: 'zip',
-        dependencies: [],
+        archiveCommand: '7z',  // Use 7-Zip for archiving
+        dependencies: [],  // No pre-installation needed on Windows
         cleanupDirs: [
             'ios',
             'third_party/jdk'

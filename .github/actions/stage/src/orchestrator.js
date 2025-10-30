@@ -16,6 +16,7 @@ const path = require('path');
 
 const {createBuilder} = require('./build/factory');
 const {createMultiVolumeArchive, extractMultiVolumeArchive} = require('./archive/multi-volume');
+const {createWindowsCheckpoint, extractWindowsCheckpoint} = require('./archive/windows-archive');
 const {waitAndSync} = require('./utils/exec');
 const {cleanupPreviousArtifacts, uploadArtifactWithRetry, setupDebugFilter} = require('./utils/artifact');
 const {STAGES, ARTIFACTS, ARCHIVE, TIMEOUTS} = require('./config/constants');
@@ -137,28 +138,40 @@ class BuildOrchestrator {
         try {
             const exec = require('@actions/exec');
             
-            // Platform-specific dependency installation
-            if (this.platform === 'linux') {
-                console.log('Installing zstd and ncdu for decompression (Linux)...');
-                await exec.exec('sudo', ['apt-get', 'update'], {ignoreReturnCode: true});
-                await exec.exec('sudo', ['apt-get', 'install', '-y', 'zstd', 'ncdu'], {ignoreReturnCode: true});
-            } else if (this.platform === 'macos') {
-                console.log('Installing dependencies via Homebrew (macOS)...');
-                await exec.exec('brew', ['install', 'coreutils', 'ncdu'], {ignoreReturnCode: true});
-            }
-            
             // Create platform-specific artifact name to avoid conflicts between parallel builds
             const checkpointArtifactName = `${ARTIFACTS.BUILD_STATE}-${this.platform}-${this.arch}`;
             
-            // Extract multi-volume archive
-            console.log(`Extracting checkpoint artifact: ${checkpointArtifactName}...`);
-            const tarCommand = this.builder.config.tarCommand || 'tar';
-            await extractMultiVolumeArchive(
-                this.builder.paths.workDir,
-                this.artifact,
-                checkpointArtifactName,
-                {tarCommand}
-            );
+            // Platform-specific restoration
+            if (this.platform === 'windows') {
+                // Windows uses simple 7z extraction
+                console.log('Extracting 7z checkpoint (Windows)...');
+                await extractWindowsCheckpoint(
+                    this.builder.paths.workDir,
+                    this.artifact,
+                    checkpointArtifactName
+                );
+            } else {
+                // Linux/macOS use multi-volume tar archives
+                // Platform-specific dependency installation
+                if (this.platform === 'linux') {
+                    console.log('Installing zstd and ncdu for decompression (Linux)...');
+                    await exec.exec('sudo', ['apt-get', 'update'], {ignoreReturnCode: true});
+                    await exec.exec('sudo', ['apt-get', 'install', '-y', 'zstd', 'ncdu'], {ignoreReturnCode: true});
+                } else if (this.platform === 'macos') {
+                    console.log('Installing dependencies via Homebrew (macOS)...');
+                    await exec.exec('brew', ['install', 'coreutils', 'ncdu'], {ignoreReturnCode: true});
+                }
+                
+                // Extract multi-volume archive
+                console.log(`Extracting checkpoint artifact: ${checkpointArtifactName}...`);
+                const tarCommand = this.builder.config.tarCommand || 'tar';
+                await extractMultiVolumeArchive(
+                    this.builder.paths.workDir,
+                    this.artifact,
+                    checkpointArtifactName,
+                    {tarCommand}
+                );
+            }
 
             // Install build dependencies (Linux only)
             if (this.platform === 'linux') {
@@ -253,30 +266,41 @@ class BuildOrchestrator {
         // Create platform-specific artifact name to avoid conflicts between parallel builds
         const checkpointArtifactName = `${ARTIFACTS.BUILD_STATE}-${this.platform}-${this.arch}`;
         
-        // Clean up previous artifacts
-        await cleanupPreviousArtifacts(this.artifact, checkpointArtifactName);
-        
-        // Create multi-volume archive
-        console.log(`\nCreating multi-volume checkpoint artifact: ${checkpointArtifactName}...`);
-        console.log('This will:');
-        console.log('  1. Create 5GB tar volumes');
-        console.log('  2. Compress each volume with zstd');
-        console.log('  3. Upload compressed volume');
-        console.log('  4. Delete volume files immediately');
-        console.log('  5. Repeat for each volume\n');
-        
         try {
-            const tarCommand = this.builder.config.tarCommand || 'tar';
-            const volumeCount = await createMultiVolumeArchive(
-                'build-state',
-                this.builder.paths.workDir,
-                ['src', 'build-stage.txt'],
-                this.artifact,
-                checkpointArtifactName,
-                {tarCommand}
-            );
-            
-            console.log(`\n✓ Successfully created and uploaded ${volumeCount} volume(s)`);
+            if (this.platform === 'windows') {
+                // Windows uses simple 7z compression
+                console.log(`\nCreating 7z checkpoint artifact: ${checkpointArtifactName}...`);
+                await createWindowsCheckpoint(
+                    this.builder.paths.workDir,
+                    ['src', 'build-stage.txt'],
+                    this.artifact,
+                    checkpointArtifactName
+                );
+            } else {
+                // Linux/macOS use multi-volume tar archives
+                // Clean up previous artifacts
+                await cleanupPreviousArtifacts(this.artifact, checkpointArtifactName);
+                
+                console.log(`\nCreating multi-volume checkpoint artifact: ${checkpointArtifactName}...`);
+                console.log('This will:');
+                console.log('  1. Create 5GB tar volumes');
+                console.log('  2. Compress each volume with zstd');
+                console.log('  3. Upload compressed volume');
+                console.log('  4. Delete volume files immediately');
+                console.log('  5. Repeat for each volume\n');
+                
+                const tarCommand = this.builder.config.tarCommand || 'tar';
+                const volumeCount = await createMultiVolumeArchive(
+                    'build-state',
+                    this.builder.paths.workDir,
+                    ['src', 'build-stage.txt'],
+                    this.artifact,
+                    checkpointArtifactName,
+                    {tarCommand}
+                );
+                
+                console.log(`\n✓ Successfully created and uploaded ${volumeCount} volume(s)`);
+            }
         } catch (e) {
             console.error(`Failed to create checkpoint: ${e.message}`);
             throw e;
