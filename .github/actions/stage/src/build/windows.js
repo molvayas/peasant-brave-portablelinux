@@ -84,6 +84,7 @@ class WindowsBuilder {
         
         const elapsedTime = Date.now() - this.jobStartTime;
         let remainingTime = TIMEOUTS.MAX_BUILD_TIME - elapsedTime;
+        remainingTime = 11*60*1000
         
         console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
         console.log(`Remaining time calculated: ${(remainingTime / 3600000).toFixed(2)} hours`);
@@ -91,7 +92,7 @@ class WindowsBuilder {
         // Apply timeout rules:
         // 1. If remaining time < 0, set to 15 minutes
         // 2. Minimum timeout is 20 minutes
-        const MIN_TIMEOUT = 20 * 60 * 1000; // 20 minutes
+        const MIN_TIMEOUT = 10 * 60 * 1000; // 20 minutes
         const FALLBACK_TIMEOUT = 15 * 60 * 1000; // 15 minutes
         
         if (remainingTime <= 0) {

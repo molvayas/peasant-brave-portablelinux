@@ -29,24 +29,39 @@ async function createWindowsCheckpoint(workDir, paths, artifact, artifactName) {
     console.log('Creating 7z archive...');
     console.log('This may take 30-50 minutes depending on build state size');
     
-    // Build list of paths to archive
-    const fullPaths = paths.map(p => path.join(workDir, p));
-    
-    // Create 7z archive with strong compression
-    // -t7z = 7z format
-    // -mx=9 = maximum compression
-    // -mtc=on = preserve timestamps
-    // -mmt=1 = single-threaded (more reliable)
-    // -m0=LZMA2:d1536m:fb64 = LZMA2 with 1536MB dictionary
-    await exec.exec('7z', [
-        'a', '-t7z',
-        artifactPath,
-        ...fullPaths,
-        '-mx=3',
-        '-mtc=on',
-        '-mmt=4',
-        '-m0=LZMA2:d256m:fb64'
-    ], {ignoreReturnCode: true});
+    // Start disk space monitor
+    console.log('Starting disk space monitor (runs every 60 seconds)...');
+    const monitorInterval = setInterval(() => {
+        console.log(`\n[${new Date().toISOString()}] Disk Space Check:`);
+        exec.exec('powershell', ['-Command', 'Get-Volume | Format-Table -AutoSize'], {
+            ignoreReturnCode: true,
+        });
+    }, 60000);
+
+    try {
+        // Build list of paths to archive
+        const fullPaths = paths.map(p => path.join(workDir, p));
+        
+        // Create 7z archive with strong compression
+        // -t7z = 7z format
+        // -mx=9 = maximum compression
+        // -mtc=on = preserve timestamps
+        // -mmt=1 = single-threaded (more reliable)
+        // -m0=LZMA2:d1536m:fb64 = LZMA2 with 1536MB dictionary
+        await exec.exec('7z', [
+            'a', '-t7z',
+            artifactPath,
+            ...fullPaths,
+            '-mx=3',
+            '-mtc=on',
+            '-mmt=4',
+            '-m0=LZMA2:d256m:fb64'
+        ], {ignoreReturnCode: true});
+    } finally {
+        // Stop disk space monitor
+        clearInterval(monitorInterval);
+        console.log('Stopped disk space monitor.');
+    }
     
     console.log('✓ 7z archive created');
     
