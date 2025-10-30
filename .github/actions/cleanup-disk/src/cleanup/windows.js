@@ -10,9 +10,7 @@ class WindowsCleanup {
     }
 
     async showDiskSpace(indent = '') {
-        await exec.exec('powershell', ['-Command', 
-            `Write-Host "${indent}"; Get-PSDrive C | Select-Object @{Name="Drive";Expression={$_.Name}}, @{Name="Used(GB)";Expression={[math]::Round($_.Used/1GB,2)}}, @{Name="Free(GB)";Expression={[math]::Round($_.Free/1GB,2)}}, @{Name="Total(GB)";Expression={[math]::Round(($_.Used+$_.Free)/1GB,2)}} | Format-Table -AutoSize`
-        ], {ignoreReturnCode: true});
+        await exec.exec('powershell', ['-Command', 'Get-Volume | Format-Table -AutoSize'], {ignoreReturnCode: true});
     }
 
     async _runDiskUsageAnalysis() {
@@ -122,7 +120,7 @@ class WindowsCleanup {
 
         console.log('=== Disk Usage Analysis (After Cleanup) ===');
         console.log('\nListing all mounted drives and free space:');
-        await exec.exec('powershell', ['-Command', 'Get-Volume | Format-Table -AutoSize'], {ignoreReturnCode: true});
+        await this.showDiskSpace();
 
         await this._runDiskUsageAnalysis();
     }
