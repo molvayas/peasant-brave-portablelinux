@@ -10,7 +10,7 @@ const WindowsBuilder = require('./windows');
  * Create a builder for the specified platform
  * @param {string} platform - Platform name (linux, macos, windows)
  * @param {string} braveVersion - Brave version to build
- * @param {string} arch - Architecture (x64, arm64)
+ * @param {string} arch - Architecture (x64, arm64, x86)
  * @returns {object} Platform-specific builder instance
  */
 function createBuilder(platform, braveVersion, arch = 'x64') {

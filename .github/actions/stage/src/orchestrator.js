@@ -240,7 +240,10 @@ class BuildOrchestrator {
         
         // Upload final artifact
         console.log('\nUploading final artifact...');
-        const artifactName = `${ARTIFACTS.FINAL_PACKAGE}-${this.platform}`;
+        // Include architecture in artifact name if it's not x64 (default)
+        const artifactName = this.arch === 'x64' 
+            ? `${ARTIFACTS.FINAL_PACKAGE}-${this.platform}`
+            : `${ARTIFACTS.FINAL_PACKAGE}-${this.platform}-${this.arch}`;
         
         await this.artifact.uploadArtifact(
             artifactName,

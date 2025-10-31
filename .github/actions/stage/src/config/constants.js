@@ -82,6 +82,10 @@ const ARCHITECTURES = {
     arm64: {
         gnArch: 'arm64',
         suffix: 'arm64'
+    },
+    x86: {
+        gnArch: 'x86',
+        suffix: 'x86'
     }
 };
 
@@ -115,7 +119,7 @@ function getPlatformConfig(platform) {
 
 /**
  * Get architecture configuration
- * @param {string} arch - Architecture name (x64, arm64)
+ * @param {string} arch - Architecture name (x64, arm64, x86)
  * @returns {object} Architecture configuration
  */
 function getArchConfig(arch) {
