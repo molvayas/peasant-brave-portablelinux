@@ -18,7 +18,8 @@ const {createBuilder} = require('./build/factory');
 const {createMultiVolumeArchive, extractMultiVolumeArchive} = require('./archive/multi-volume');
 const {createWindowsCheckpoint, extractWindowsCheckpoint} = require('./archive/windows-archive');
 const {waitAndSync} = require('./utils/exec');
-const {cleanupPreviousArtifacts, uploadArtifactWithRetry, setupDebugFilter} = require('./utils/artifact');
+const { DiskAnalyzer } = require('./utils/disk-analysis');
+const { setupArtifactDebugFilter } = require('./utils/log');
 const {STAGES, ARTIFACTS, ARCHIVE, TIMEOUTS} = require('./config/constants');
 
 class BuildOrchestrator {
@@ -40,7 +41,7 @@ class BuildOrchestrator {
         this.builder.jobStartTime = this.jobStartTime;
         
         // Filter debug messages from artifact operations
-        setupDebugFilter();
+        setupArtifactDebugFilter();
     }
 
     /**
@@ -192,6 +193,7 @@ class BuildOrchestrator {
     async _runBuildStages() {
         const currentStage = await this.builder.getCurrentStage();
         console.log(`\n=== Running Build Stages (current: ${currentStage}) ===`);
+        const diskAnalyzer = new DiskAnalyzer(this.platform);
 
         // Stage 1: npm run init
         if (currentStage === STAGES.INIT) {
@@ -199,6 +201,7 @@ class BuildOrchestrator {
             
             if (initSuccess) {
                 await this.builder.setStage(STAGES.BUILD);
+                await diskAnalyzer.analyze('post-init');
             } else {
                 console.log('Init stage failed, will retry in next run');
                 return false;
@@ -211,6 +214,7 @@ class BuildOrchestrator {
             
             if (buildResult.success) {
                 await this.builder.setStage(STAGES.PACKAGE);
+                await diskAnalyzer.analyze('post-build');
                 return true;
             } else if (buildResult.timedOut) {
                 console.log('Build timed out, will resume in next run');
@@ -238,17 +242,12 @@ class BuildOrchestrator {
         console.log('\nUploading final artifact...');
         const artifactName = `${ARTIFACTS.FINAL_PACKAGE}-${this.platform}`;
         
-        const success = await uploadArtifactWithRetry(
-            this.artifact,
+        await this.artifact.uploadArtifact(
             artifactName,
             [packagePath],
             this.builder.paths.workDir,
             {retentionDays: ARCHIVE.FINAL_RETENTION_DAYS}
         );
-
-        if (!success) {
-            throw new Error('Failed to upload final artifact');
-        }
 
         console.log('✓ Final artifact uploaded successfully');
     }
@@ -278,8 +277,17 @@ class BuildOrchestrator {
                 );
             } else {
                 // Linux/macOS use multi-volume tar archives
-                // Clean up previous artifacts
-                await cleanupPreviousArtifacts(this.artifact, checkpointArtifactName);
+                // Clean up previous artifacts safely
+                console.log('Cleaning up previous artifacts...');
+                try {
+                    await this.artifact.deleteArtifact(`${checkpointArtifactName}-manifest`);
+                } catch (e) { /* Ignore error */ }
+                
+                for (let i = 1; i <= ARCHIVE.MAX_VOLUMES; i++) {
+                    try {
+                        await this.artifact.deleteArtifact(`${checkpointArtifactName}-vol${i.toString().padStart(3, '0')}`);
+                    } catch (e) { /* Ignore error */ }
+                }
                 
                 console.log(`\nCreating multi-volume checkpoint artifact: ${checkpointArtifactName}...`);
                 console.log('This will:');
