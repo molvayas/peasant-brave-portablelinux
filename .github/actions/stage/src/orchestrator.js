@@ -298,13 +298,14 @@ class BuildOrchestrator {
                 console.log('  5. Repeat for each volume\n');
                 
                 const tarCommand = this.builder.config.tarCommand || 'tar';
+                const volumeSize = this.builder.config.volumeSize;
                 const volumeCount = await createMultiVolumeArchive(
                     'build-state',
                     this.builder.paths.workDir,
                     ['src', 'build-stage.txt'],
                     this.artifact,
                     checkpointArtifactName,
-                    {tarCommand}
+                    { tarCommand, volumeSize }
                 );
                 
                 console.log(`\n✓ Successfully created and uploaded ${volumeCount} volume(s)`);

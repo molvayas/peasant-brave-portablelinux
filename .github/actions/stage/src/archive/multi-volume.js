@@ -29,7 +29,9 @@ const SCRIPTS_DIR = path.join(__dirname, 'scripts');
  */
 async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifact, artifactName, options = {}) {
     const tarCommand = options.tarCommand || 'tar';
+    const volumeSize = options.volumeSize || '5G'; // Default to 5G if not provided
     console.log('=== Creating Multi-Volume Archive ===');
+    console.log(`Volume size: ${volumeSize}`);
     console.log(`Base name: ${archiveBaseName}`);
     console.log(`Working directory: ${workDir}`);
     console.log(`Paths to archive: ${paths.join(', ')}`);
@@ -65,7 +67,7 @@ async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifac
     console.log(`[Tar] Starting tar command (using ${tarCommand})...`);
     const tarExitCode = await exec.exec(tarCommand, [
         '-cM',  // Create multi-volume archive
-        '-L', ARCHIVE.VOLUME_SIZE,  // Volume size (e.g., '5G')
+        '-L', volumeSize,  // Volume size (e.g., '5G')
         '-F', volumeScriptPath,  // Script for new volumes
         '-f', tarArchivePath,
         '-H', 'posix',

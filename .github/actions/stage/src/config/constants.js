@@ -14,7 +14,6 @@ const TIMEOUTS = {
 
 // Archive configuration
 const ARCHIVE = {
-    VOLUME_SIZE: '5G',  // 5GB per volume (GNU tar accepts human-readable sizes)
     COMPRESSION_LEVEL: 3,
     MAX_VOLUMES: 20,
     RETENTION_DAYS: 1,
@@ -30,6 +29,7 @@ const PLATFORMS = {
         outputDirName: 'Component',
         executable: 'brave',
         packageFormat: 'tar.xz',
+        volumeSize: '5G',
         dependencies: [
             'build-essential', 'git', 'python3', 'python3-pip',
             'python-setuptools', 'python3-distutils', 'python-is-python3',
@@ -48,6 +48,7 @@ const PLATFORMS = {
         outputDirName: 'Component',
         executable: 'Brave Browser.app',
         packageFormat: 'tar.xz',
+        volumeSize: '15G',
         tarCommand: 'gtar',  // Use GNU tar on macOS
         dependencies: [],  // Installed via brew in builder
         cleanupDirs: [
