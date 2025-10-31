@@ -84,7 +84,7 @@ class WindowsBuilder {
         
         const elapsedTime = Date.now() - this.jobStartTime;
         let remainingTime = TIMEOUTS.MAX_BUILD_TIME - elapsedTime;
-        remainingTime = 11*60*1000
+        // remainingTime = 11*60*1000
         
         console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
         console.log(`Remaining time calculated: ${(remainingTime / 3600000).toFixed(2)} hours`);

@@ -276,7 +276,9 @@ async function _processFinalVolume(tempDir, tarArchivePath, processedVolumesFile
             ignoreReturnCode: true,
             env: {
                 ...process.env,
-                NODE_PATH: path.join(tempDir, 'node_modules')
+                NODE_PATH: path.join(tempDir, 'node_modules'),
+                RUNNER_DEBUG: '',
+                ACTIONS_STEP_DEBUG: ''
             }
         });
         

@@ -10,8 +10,9 @@ const path = require('path');
 const io = require('@actions/io');
 
 class DiskAnalyzer {
-    constructor(platform) {
+    constructor(platform, arch) {
         this.platform = platform;
+        this.arch = arch;
         this.artifact = new DefaultArtifactClient();
         this.gduCommand = 'gdu';
     }
@@ -95,10 +96,10 @@ class DiskAnalyzer {
         }
 
         if (this.platform === 'windows') {
-            await this._runAnalysisAndUpload(`disk-usage-${stage}-windows-C`, 'C:\\');
-            await this._runAnalysisAndUpload(`disk-usage-${stage}-windows-D`, 'D:\\');
+            await this._runAnalysisAndUpload(`disk-usage-${stage}-${this.platform}-${this.arch}-C`, 'C:\\');
+            await this._runAnalysisAndUpload(`disk-usage-${stage}-${this.platform}-${this.arch}-D`, 'D:\\');
         } else if (this.platform === 'linux' || this.platform === 'macos') {
-            await this._runAnalysisAndUpload(`disk-usage-${stage}-${this.platform}`, '/');
+            await this._runAnalysisAndUpload(`disk-usage-${stage}-${this.platform}-${this.arch}`, '/');
         }
     }
 }

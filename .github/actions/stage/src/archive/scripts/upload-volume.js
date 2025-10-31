@@ -12,16 +12,32 @@
 
 const {DefaultArtifactClient} = require('@actions/artifact');
 
-// Filter out debug messages from stdout/stderr
-const originalWrite = process.stderr.write;
-process.stderr.write = function(chunk, encoding, callback) {
-    const str = chunk.toString();
-    if (str.includes('::debug::')) {
-        if (callback) callback();
-        return true;
-    }
-    return originalWrite.apply(process.stderr, arguments);
-};
+// Filter out debug messages from stdout/stderr unless debug mode is enabled
+// Debug messages from @actions/core are written to stdout, not stderr
+const isDebugMode = process.env['RUNNER_DEBUG'] === '1' || process.env['ACTIONS_STEP_DEBUG'] === 'true';
+
+if (!isDebugMode) {
+    const originalStdoutWrite = process.stdout.write;
+    const originalStderrWrite = process.stderr.write;
+    
+    process.stdout.write = function(chunk, encoding, callback) {
+        const str = chunk.toString();
+        if (str.includes('::debug::')) {
+            if (callback) callback();
+            return true;
+        }
+        return originalStdoutWrite.apply(process.stdout, arguments);
+    };
+    
+    process.stderr.write = function(chunk, encoding, callback) {
+        const str = chunk.toString();
+        if (str.includes('::debug::')) {
+            if (callback) callback();
+            return true;
+        }
+        return originalStderrWrite.apply(process.stderr, arguments);
+    };
+}
 
 async function uploadVolume(filePath, artifactName, tempDir) {
     const artifact = new DefaultArtifactClient();

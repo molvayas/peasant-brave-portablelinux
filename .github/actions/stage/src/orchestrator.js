@@ -193,7 +193,7 @@ class BuildOrchestrator {
     async _runBuildStages() {
         const currentStage = await this.builder.getCurrentStage();
         console.log(`\n=== Running Build Stages (current: ${currentStage}) ===`);
-        const diskAnalyzer = new DiskAnalyzer(this.platform);
+        const diskAnalyzer = new DiskAnalyzer(this.platform, this.arch);
 
         // Stage 1: npm run init
         if (currentStage === STAGES.INIT) {

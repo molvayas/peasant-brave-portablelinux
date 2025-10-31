@@ -78,8 +78,9 @@ else
     VOLUME_NUM=$(printf "%03d" $COMPLETED_VOLUME_NUM)
     
     # Run upload and capture exit code properly
+    # Explicitly disable debug mode to suppress ::debug:: messages from upload-artifact
     set +e
-    NODE_PATH="${TEMP_DIR}/node_modules" node "${SCRIPTS_DIR}/upload-volume.js" \
+    RUNNER_DEBUG="" ACTIONS_STEP_DEBUG="" NODE_PATH="${TEMP_DIR}/node_modules" node "${SCRIPTS_DIR}/upload-volume.js" \
         "$COMPRESSED" \
         "${ARTIFACT_NAME}-vol${VOLUME_NUM}" \
         "$TEMP_DIR" \
