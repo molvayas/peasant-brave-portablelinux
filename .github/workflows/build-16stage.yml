@@ -33,6 +33,11 @@ on:
         required: true
         type: boolean
         default: false
+      build_windows_x86:
+        description: 'Build Windows x86 (32-bit)'
+        required: true
+        type: boolean
+        default: false
       publish_release:
         description: 'Publish GitHub release (uncheck for test builds)'
         required: true
@@ -631,6 +636,201 @@ jobs:
       finished: ${{ needs.windows-arm64-build-15.outputs.finished }}
 
   # ============================================================================
+  # Windows x86 Build Chain (16 stages) - Optional
+  # ============================================================================
+  
+  windows-x86-build-1:
+    name: Windows x86 - Stage 1/16
+    if: ${{ inputs.build_windows_x86 }}
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 1
+      from_artifact: false
+      finished: 'false'
+
+  windows-x86-build-2:
+    name: Windows x86 - Stage 2/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-1
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 2
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-1.outputs.finished }}
+
+  windows-x86-build-3:
+    name: Windows x86 - Stage 3/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-2
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 3
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-2.outputs.finished }}
+
+  windows-x86-build-4:
+    name: Windows x86 - Stage 4/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-3
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 4
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-3.outputs.finished }}
+
+  windows-x86-build-5:
+    name: Windows x86 - Stage 5/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-4
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 5
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-4.outputs.finished }}
+
+  windows-x86-build-6:
+    name: Windows x86 - Stage 6/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-5
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 6
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-5.outputs.finished }}
+
+  windows-x86-build-7:
+    name: Windows x86 - Stage 7/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-6
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 7
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-6.outputs.finished }}
+
+  windows-x86-build-8:
+    name: Windows x86 - Stage 8/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-7
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 8
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-7.outputs.finished }}
+
+  windows-x86-build-9:
+    name: Windows x86 - Stage 9/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-8
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 9
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-8.outputs.finished }}
+
+  windows-x86-build-10:
+    name: Windows x86 - Stage 10/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-9
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 10
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-9.outputs.finished }}
+
+  windows-x86-build-11:
+    name: Windows x86 - Stage 11/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-10
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 11
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-10.outputs.finished }}
+
+  windows-x86-build-12:
+    name: Windows x86 - Stage 12/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-11
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 12
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-11.outputs.finished }}
+
+  windows-x86-build-13:
+    name: Windows x86 - Stage 13/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-12
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 13
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-12.outputs.finished }}
+
+  windows-x86-build-14:
+    name: Windows x86 - Stage 14/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-13
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 14
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-13.outputs.finished }}
+
+  windows-x86-build-15:
+    name: Windows x86 - Stage 15/16
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-14
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 15
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-14.outputs.finished }}
+
+  windows-x86-build-16:
+    name: Windows x86 - Stage 16/16 (Final)
+    if: ${{ inputs.build_windows_x86 }}
+    needs: windows-x86-build-15
+    uses: ./.github/workflows/builder.yml
+    with:
+      platform: windows
+      arch: x86
+      stage: 16
+      from_artifact: true
+      finished: ${{ needs.windows-x86-build-15.outputs.finished }}
+
+  # ============================================================================
   # macOS x64 Build Chain (16 stages)
   # ============================================================================
   
@@ -1227,7 +1427,8 @@ jobs:
       macos-x64-build-16,
       macos-arm64-build-16,
       windows-x64-build-16,
-      windows-arm64-build-16
+      windows-arm64-build-16,
+      windows-x86-build-16
     ]
     if: always()
     runs-on: ubuntu-latest
@@ -1279,6 +1480,14 @@ jobs:
         with:
           name: brave-browser-windows-arm64
           path: ./artifacts/windows-arm64
+      
+      - name: Download Windows x86 artifact
+        if: ${{ inputs.build_windows_x86 }}
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: brave-browser-windows-x86
+          path: ./artifacts/windows-x86
       
       - name: List all artifacts
         run: |
@@ -1340,6 +1549,7 @@ jobs:
           echo "- macOS arm64: ${{ inputs.build_macos_arm64 }}" >> $GITHUB_STEP_SUMMARY
           echo "- Windows x64: ${{ inputs.build_windows_x64 }}" >> $GITHUB_STEP_SUMMARY
           echo "- Windows arm64: ${{ inputs.build_windows_arm64 }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Windows x86: ${{ inputs.build_windows_x86 }}" >> $GITHUB_STEP_SUMMARY
           echo "- Publishing release: ${{ inputs.publish_release }}" >> $GITHUB_STEP_SUMMARY
           echo "- Approval required: ${{ inputs.require_approval }}" >> $GITHUB_STEP_SUMMARY
           echo "- Build stages: 16 per platform" >> $GITHUB_STEP_SUMMARY
@@ -1351,6 +1561,7 @@ jobs:
           ${{ inputs.build_macos_arm64 }} && PLATFORMS="${PLATFORMS}- macOS arm64\n"
           ${{ inputs.build_windows_x64 }} && PLATFORMS="${PLATFORMS}- Windows x64\n"
           ${{ inputs.build_windows_arm64 }} && PLATFORMS="${PLATFORMS}- Windows arm64\n"
+          ${{ inputs.build_windows_x86 }} && PLATFORMS="${PLATFORMS}- Windows x86\n"
           echo "platforms<<EOF" >> $GITHUB_OUTPUT
           echo -e "$PLATFORMS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
