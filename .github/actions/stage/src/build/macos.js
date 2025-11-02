@@ -142,11 +142,12 @@ class MacOSBuilder {
         console.log(`Creating archive of entire out directory: ${packageName}`);
         console.log('This may take a while...');
         
-        // Use gtar (GNU tar) with compression
+        // Use gtar (GNU tar) with compression, exclude obj directory
         await exec.exec('gtar', [
             'caf', packagePath,
             '-H', 'posix',
             '--atime-preserve',
+            '--exclude=out/*/obj',  // Exclude obj directories
             '-C', this.paths.srcDir,
             'out'
         ], {

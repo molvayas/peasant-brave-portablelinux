@@ -158,14 +158,15 @@ class WindowsBuilder {
         const packagePath = path.join(this.paths.workDir, packageName);
         
         console.log(`Creating archive: ${packageName}`);
-        console.log('Compressing out directory with 7z...');
+        console.log('Compressing out directory with 7z (excluding obj directory)...');
         
-        // Use 7z with moderate compression
+        // Use 7z with moderate compression, exclude obj directory
         await exec.exec('7z', [
             'a', '-tzip',
             packagePath,
             outDir,
-            '-mx=5'
+            '-mx=5',
+            '-xr!obj'  // Exclude obj directory recursively
         ], {ignoreReturnCode: true});
         
         console.log('✓ Package created successfully');
