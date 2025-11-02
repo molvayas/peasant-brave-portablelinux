@@ -287,21 +287,21 @@ class WindowsBuilder {
             
             const timer = setTimeout(async () => {
                 console.log(`\n⏱️ Timeout reached after ${(timeout / 60000).toFixed(0)} minutes`);
-                console.log('Gracefully terminating build process...');
+                console.log('Terminating build process...');
                 timedOut = true;
                 
-                // Send graceful termination signal to the entire process tree
-                // This allows ninja to save build state properly
+                // Force kill the entire process tree
+                // /F = force, /T = entire tree
                 try {
-                    console.log(`Sending SIGTERM to process tree (PID ${child.pid})...`);
-                    child_process.execSync(`taskkill /T /PID ${child.pid}`, {stdio: 'inherit'});
-                    console.log('Termination signal sent successfully');
+                    console.log(`Force killing process tree (PID ${child.pid})...`);
+                    child_process.execSync(`taskkill /F /T /PID ${child.pid}`, {stdio: 'inherit'});
+                    console.log('Process tree terminated');
                 } catch (e) {
                     console.log('Process may have already exited');
                 }
                 
-                // Wait for build system to clean up and save state
-                console.log('Waiting 60 seconds for build system cleanup...');
+                // Wait for Windows to release file handles and locks
+                console.log('Waiting 60 seconds for file handles to release and state to be saved...');
                 await new Promise(r => setTimeout(r, 60000));
                 console.log('✓ Cleanup period complete');
                 
