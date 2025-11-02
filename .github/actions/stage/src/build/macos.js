@@ -149,7 +149,13 @@ class MacOSBuilder {
             '--atime-preserve',
             '-C', this.paths.srcDir,
             'out'
-        ], {ignoreReturnCode: true});
+        ], {
+            ignoreReturnCode: true,
+            env: {
+                ...process.env,
+                LC_ALL: 'C'  // Use C locale to avoid "Illegal byte sequence" errors on macOS
+            }
+        });
         
         console.log('✓ Package created successfully');
         

@@ -263,7 +263,7 @@ class WindowsBuilder {
 
     /**
      * Windows-specific timeout implementation using taskkill
-     * Emulates Ctrl+C behavior to allow ninja to save build state for resumption
+     * Gracefully terminates npm run build and waits for cleanup
      * @param {string} command - Command to run
      * @param {string[]} args - Command arguments
      * @param {object} options - Options including cwd and timeout in milliseconds
@@ -283,52 +283,42 @@ class WindowsBuilder {
                 windowsHide: false
             });
             
-            let killed = false;
+            let timedOut = false;
             
             const timer = setTimeout(async () => {
                 console.log(`\n⏱️ Timeout reached after ${(timeout / 60000).toFixed(0)} minutes`);
-                console.log('Sending graceful shutdown signal to allow ninja to save build state...');
-                killed = true;
+                console.log('Gracefully terminating build process...');
+                timedOut = true;
                 
-                // Phase 1: Send graceful termination signals
-                // taskkill without /F asks processes to exit cleanly
+                // Send graceful termination signal to the entire process tree
+                // This allows ninja to save build state properly
                 try {
-                    console.log(`Sending termination signal to process tree (PID ${child.pid})...`);
+                    console.log(`Sending SIGTERM to process tree (PID ${child.pid})...`);
                     child_process.execSync(`taskkill /T /PID ${child.pid}`, {stdio: 'inherit'});
-                    
-                    // Give ninja TIME to:
-                    // - Stop accepting new jobs
-                    // - Finish current compilation tasks
-                    // - Write .ninja_deps and .ninja_log
-                    // - Close all file handles
-                    console.log('Waiting 45 seconds for ninja to finish current tasks and save state...');
-                    await new Promise(r => setTimeout(r, 45000));
-                    
+                    console.log('Termination signal sent successfully');
                 } catch (e) {
-                    console.log(`Termination signal sent (or process already exited)`);
+                    console.log('Process may have already exited');
                 }
                 
-                // Phase 2: Force kill the process tree
-                // By now ninja should have saved state, so we can force kill
-                try {
-                    console.log('Force terminating process tree...');
-                    child_process.execSync(`taskkill /T /F /PID ${child.pid}`, {stdio: 'inherit'});
-                    console.log('Process tree terminated');
-                } catch (e) {
-                    console.log('Process already exited');
-                }
+                // Wait for build system to clean up and save state
+                console.log('Waiting 60 seconds for build system cleanup...');
+                await new Promise(r => setTimeout(r, 60000));
+                console.log('✓ Cleanup period complete');
+                
+                // Resolve with timeout code
+                resolve(999);
             }, timeout);
             
             child.on('exit', (code) => {
                 clearTimeout(timer);
                 
-                if (killed) {
-                    console.log('Build process stopped due to timeout');
-                    resolve(999); // Special code for timeout
-                } else {
-                    console.log(`Process exited with code: ${code}`);
-                    resolve(code || 0);
+                if (timedOut) {
+                    // Already handled in timeout callback
+                    return;
                 }
+                
+                console.log(`Process exited with code: ${code}`);
+                resolve(code || 0);
             });
             
             child.on('error', (err) => {

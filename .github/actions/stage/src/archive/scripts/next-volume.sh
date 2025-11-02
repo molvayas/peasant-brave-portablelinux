@@ -17,6 +17,9 @@
 
 set -e
 
+# Set locale to C to avoid "Illegal byte sequence" errors on macOS
+export LC_ALL=C
+
 TEMP_DIR="$1"
 ARTIFACT_NAME="$2"
 PROCESSED_VOLUMES_FILE="$3"

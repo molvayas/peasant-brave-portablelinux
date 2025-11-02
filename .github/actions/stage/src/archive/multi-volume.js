@@ -76,7 +76,11 @@ async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifac
         '-C', workDir,
         ...paths
     ], {
-        ignoreReturnCode: true
+        ignoreReturnCode: true,
+        env: {
+            ...process.env,
+            LC_ALL: 'C'  // Use C locale to avoid "Illegal byte sequence" errors on macOS
+        }
     });
     
     console.log(`\n[Main] Tar process completed with exit code: ${tarExitCode}`);
@@ -156,7 +160,12 @@ async function extractMultiVolumeArchive(workDir, artifact, artifactName, option
     console.log('\n=== Extracting Multi-Volume Archive ===');
     console.log(`Using ${tarCommand} to download subsequent volumes on-demand via the info script...`);
     
-    await exec.exec(tarCommand, ['-xM', '-f', firstVolumePath, '-F', extractScriptPath, '-C', workDir]);
+    await exec.exec(tarCommand, ['-xM', '-f', firstVolumePath, '-F', extractScriptPath, '-C', workDir], {
+        env: {
+            ...process.env,
+            LC_ALL: 'C'  // Use C locale to avoid "Illegal byte sequence" errors on macOS
+        }
+    });
     
     console.log('✓ Extraction complete');
     
@@ -253,7 +262,12 @@ async function _processFinalVolume(tempDir, tarArchivePath, processedVolumesFile
         // Compress with zstd
         const compressedPath = `${finalVolumePath}.zst`;
         console.log(`[Main] Compressing with zstd...`);
-        await exec.exec('zstd', [`-${ARCHIVE.COMPRESSION_LEVEL}`, '-T0', '--rm', finalVolumePath, '-o', compressedPath]);
+        await exec.exec('zstd', [`-${ARCHIVE.COMPRESSION_LEVEL}`, '-T0', '--rm', finalVolumePath, '-o', compressedPath], {
+            env: {
+                ...process.env,
+                LC_ALL: 'C'
+            }
+        });
         
         const compressedStats = await fs.stat(compressedPath);
         const compressedSizeGB = (compressedStats.size / (1024 * 1024 * 1024)).toFixed(2);
@@ -421,7 +435,12 @@ async function _downloadFirstVolume(tempDir, volumesDir, manifest, artifact) {
     const firstCompressedPath = path.join(firstDownloadPath, firstCompressed);
     
     console.log('Decompressing first volume...');
-    await exec.exec('zstd', ['-d', '--rm', firstCompressedPath, '-o', firstVolumePath]);
+    await exec.exec('zstd', ['-d', '--rm', firstCompressedPath, '-o', firstVolumePath], {
+        env: {
+            ...process.env,
+            LC_ALL: 'C'
+        }
+    });
     await io.rmRF(firstDownloadPath);
     console.log('✓ First volume ready');
     

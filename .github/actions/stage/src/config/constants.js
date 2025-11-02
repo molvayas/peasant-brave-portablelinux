@@ -6,7 +6,7 @@ const path = require('path');
 
 // Build timeouts (in milliseconds)
 const TIMEOUTS = {
-    MAX_BUILD_TIME: 260 * 60 * 1000, // 4.33 hours
+    MAX_BUILD_TIME: 240 * 60 * 1000, // 4.33 hours
     MIN_BUILD_TIME: 5 * 60 * 1000,   // 5 minutes
     CLEANUP_WAIT: 10 * 1000,          // 10 seconds
     SYNC_WAIT: 10 * 1000              // 10 seconds

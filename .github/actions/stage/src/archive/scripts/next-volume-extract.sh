@@ -18,6 +18,9 @@
 
 set -e
 
+# Set locale to C to avoid "Illegal byte sequence" errors on macOS
+export LC_ALL=C
+
 BASE_NAME="$1"
 VOLUMES_DIR="$2"
 VOLUME_COUNT="$3"

@@ -146,7 +146,13 @@ class LinuxBuilder {
             'libvulkan.so.1', 'locales', 'resources.pak',
             'chrome_100_percent.pak', 'chrome_200_percent.pak',
             'icudtl.dat', 'snapshot_blob.bin', 'v8_context_snapshot.bin'
-        ], {ignoreReturnCode: true});
+        ], {
+            ignoreReturnCode: true,
+            env: {
+                ...process.env,
+                LC_ALL: 'C'
+            }
+        });
         
         console.log('✓ Package created successfully');
         
