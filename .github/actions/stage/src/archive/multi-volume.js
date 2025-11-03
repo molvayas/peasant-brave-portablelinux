@@ -145,6 +145,11 @@ async function extractMultiVolumeArchive(workDir, artifact, artifactName, option
         artifact
     );
     
+    // Wait 15 seconds between artifact download and extraction
+    console.log('Waiting 15 seconds before extraction...');
+    await new Promise(r => setTimeout(r, 15000));
+    console.log('✓ Wait complete, starting extraction');
+    
     // Create wrapper script for extraction
     const extractScriptPath = path.join(tempDir, 'next-volume-extract-wrapper.sh');
     await _createExtractionWrapperScript(

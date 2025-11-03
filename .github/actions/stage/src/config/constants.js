@@ -29,7 +29,7 @@ const PLATFORMS = {
         outputDirName: 'Component',
         executable: 'brave',
         packageFormat: 'tar.xz',
-        volumeSize: '5G',
+        volumeSize: '7G',
         dependencies: [
             'build-essential', 'git', 'python3', 'python3-pip',
             'python-setuptools', 'python3-distutils', 'python-is-python3',
@@ -48,7 +48,7 @@ const PLATFORMS = {
         outputDirName: 'Component',
         executable: 'Brave Browser.app',
         packageFormat: 'tar.xz',
-        volumeSize: '15G',
+        volumeSize: '7G',
         tarCommand: 'gtar',  // Use GNU tar on macOS
         dependencies: [],  // Installed via brew in builder
         cleanupDirs: [

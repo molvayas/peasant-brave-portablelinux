@@ -83,6 +83,11 @@ else
             echo "[Extract] ERROR: Failed to download volume ${VOLUME_NUM}" >&2
             exit 1
         fi
+        
+        # Wait 15 seconds after download before extraction
+        echo "[Extract] Waiting 15 seconds after download..." >&2
+        sleep 15
+        echo "[Extract] ✓ Wait complete" >&2
     fi
     
     echo "[Extract] Returning volume ${VOLUME_NUM}: $VOLUME_FILE" >&2
