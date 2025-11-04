@@ -38,6 +38,14 @@ on:
         required: true
         type: boolean
         default: false
+      build_type:
+        description: 'Build type: Component (faster, for testing) or Release (official build, requires secrets)'
+        required: true
+        type: choice
+        options:
+          - Component
+          - Release
+        default: Component
       publish_release:
         description: 'Publish GitHub release (uncheck for test builds)'
         required: true
@@ -64,6 +72,9 @@ jobs:
       stage: 1
       from_artifact: false
       finished: 'false'
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   linux-x64-build-2:
     name: Linux x64 - Stage 2/16
@@ -76,6 +87,9 @@ jobs:
       stage: 2
       from_artifact: true
       finished: ${{ needs.linux-x64-build-1.outputs.finished }}
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   linux-x64-build-3:
     name: Linux x64 - Stage 3/16
@@ -87,7 +101,10 @@ jobs:
       arch: x64
       stage: 3
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-2.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}2.outputs.finished }}
 
   linux-x64-build-4:
     name: Linux x64 - Stage 4/16
@@ -99,7 +116,10 @@ jobs:
       arch: x64
       stage: 4
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-3.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}3.outputs.finished }}
 
   linux-x64-build-5:
     name: Linux x64 - Stage 5/16
@@ -111,7 +131,10 @@ jobs:
       arch: x64
       stage: 5
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-4.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}4.outputs.finished }}
 
   linux-x64-build-6:
     name: Linux x64 - Stage 6/16
@@ -123,7 +146,10 @@ jobs:
       arch: x64
       stage: 6
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-5.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}5.outputs.finished }}
 
   linux-x64-build-7:
     name: Linux x64 - Stage 7/16
@@ -135,7 +161,10 @@ jobs:
       arch: x64
       stage: 7
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-6.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}6.outputs.finished }}
 
   linux-x64-build-8:
     name: Linux x64 - Stage 8/16
@@ -147,7 +176,10 @@ jobs:
       arch: x64
       stage: 8
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-7.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}7.outputs.finished }}
 
   linux-x64-build-9:
     name: Linux x64 - Stage 9/16
@@ -159,7 +191,10 @@ jobs:
       arch: x64
       stage: 9
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-8.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}8.outputs.finished }}
 
   linux-x64-build-10:
     name: Linux x64 - Stage 10/16
@@ -171,7 +206,10 @@ jobs:
       arch: x64
       stage: 10
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-9.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}9.outputs.finished }}
 
   linux-x64-build-11:
     name: Linux x64 - Stage 11/16
@@ -183,7 +221,10 @@ jobs:
       arch: x64
       stage: 11
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-10.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}10.outputs.finished }}
 
   linux-x64-build-12:
     name: Linux x64 - Stage 12/16
@@ -195,7 +236,10 @@ jobs:
       arch: x64
       stage: 12
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-11.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}11.outputs.finished }}
 
   linux-x64-build-13:
     name: Linux x64 - Stage 13/16
@@ -207,7 +251,10 @@ jobs:
       arch: x64
       stage: 13
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-12.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}12.outputs.finished }}
 
   linux-x64-build-14:
     name: Linux x64 - Stage 14/16
@@ -219,7 +266,10 @@ jobs:
       arch: x64
       stage: 14
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-13.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}13.outputs.finished }}
 
   linux-x64-build-15:
     name: Linux x64 - Stage 15/16
@@ -231,7 +281,10 @@ jobs:
       arch: x64
       stage: 15
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-14.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}14.outputs.finished }}
 
   linux-x64-build-16:
     name: Linux x64 - Stage 16/16 (Final)
@@ -243,7 +296,10 @@ jobs:
       arch: x64
       stage: 16
       from_artifact: true
-      finished: ${{ needs.linux-x64-build-15.outputs.finished }}
+      finished: ${{ needs.linux-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}15.outputs.finished }}
 
   # ============================================================================
   # Windows x64 Build Chain (16 stages)
@@ -259,6 +315,9 @@ jobs:
       stage: 1
       from_artifact: false
       finished: 'false'
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   windows-x64-build-2:
     name: Windows x64 - Stage 2/16
@@ -270,7 +329,10 @@ jobs:
       arch: x64
       stage: 2
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-1.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   windows-x64-build-3:
     name: Windows x64 - Stage 3/16
@@ -282,7 +344,10 @@ jobs:
       arch: x64
       stage: 3
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-2.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}2.outputs.finished }}
 
   windows-x64-build-4:
     name: Windows x64 - Stage 4/16
@@ -294,7 +359,10 @@ jobs:
       arch: x64
       stage: 4
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-3.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}3.outputs.finished }}
 
   windows-x64-build-5:
     name: Windows x64 - Stage 5/16
@@ -306,7 +374,10 @@ jobs:
       arch: x64
       stage: 5
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-4.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}4.outputs.finished }}
 
   windows-x64-build-6:
     name: Windows x64 - Stage 6/16
@@ -318,7 +389,10 @@ jobs:
       arch: x64
       stage: 6
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-5.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}5.outputs.finished }}
 
   windows-x64-build-7:
     name: Windows x64 - Stage 7/16
@@ -330,7 +404,10 @@ jobs:
       arch: x64
       stage: 7
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-6.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}6.outputs.finished }}
 
   windows-x64-build-8:
     name: Windows x64 - Stage 8/16
@@ -342,7 +419,10 @@ jobs:
       arch: x64
       stage: 8
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-7.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}7.outputs.finished }}
 
   windows-x64-build-9:
     name: Windows x64 - Stage 9/16
@@ -354,7 +434,10 @@ jobs:
       arch: x64
       stage: 9
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-8.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}8.outputs.finished }}
 
   windows-x64-build-10:
     name: Windows x64 - Stage 10/16
@@ -366,7 +449,10 @@ jobs:
       arch: x64
       stage: 10
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-9.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}9.outputs.finished }}
 
   windows-x64-build-11:
     name: Windows x64 - Stage 11/16
@@ -378,7 +464,10 @@ jobs:
       arch: x64
       stage: 11
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-10.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}10.outputs.finished }}
 
   windows-x64-build-12:
     name: Windows x64 - Stage 12/16
@@ -390,7 +479,10 @@ jobs:
       arch: x64
       stage: 12
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-11.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}11.outputs.finished }}
 
   windows-x64-build-13:
     name: Windows x64 - Stage 13/16
@@ -402,7 +494,10 @@ jobs:
       arch: x64
       stage: 13
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-12.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}12.outputs.finished }}
 
   windows-x64-build-14:
     name: Windows x64 - Stage 14/16
@@ -414,7 +509,10 @@ jobs:
       arch: x64
       stage: 14
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-13.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}13.outputs.finished }}
 
   windows-x64-build-15:
     name: Windows x64 - Stage 15/16
@@ -426,7 +524,10 @@ jobs:
       arch: x64
       stage: 15
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-14.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}14.outputs.finished }}
 
   windows-x64-build-16:
     name: Windows x64 - Stage 16/16 (Final)
@@ -438,7 +539,10 @@ jobs:
       arch: x64
       stage: 16
       from_artifact: true
-      finished: ${{ needs.windows-x64-build-15.outputs.finished }}
+      finished: ${{ needs.windows-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}15.outputs.finished }}
 
   # ============================================================================
   # Windows arm64 Build Chain (16 stages) - NEW!
@@ -454,6 +558,9 @@ jobs:
       stage: 1
       from_artifact: false
       finished: 'false'
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   windows-arm64-build-2:
     name: Windows arm64 - Stage 2/16
@@ -465,7 +572,10 @@ jobs:
       arch: arm64
       stage: 2
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-1.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   windows-arm64-build-3:
     name: Windows arm64 - Stage 3/16
@@ -477,7 +587,10 @@ jobs:
       arch: arm64
       stage: 3
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-2.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}2.outputs.finished }}
 
   windows-arm64-build-4:
     name: Windows arm64 - Stage 4/16
@@ -489,7 +602,10 @@ jobs:
       arch: arm64
       stage: 4
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-3.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}3.outputs.finished }}
 
   windows-arm64-build-5:
     name: Windows arm64 - Stage 5/16
@@ -501,7 +617,10 @@ jobs:
       arch: arm64
       stage: 5
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-4.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}4.outputs.finished }}
 
   windows-arm64-build-6:
     name: Windows arm64 - Stage 6/16
@@ -513,7 +632,10 @@ jobs:
       arch: arm64
       stage: 6
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-5.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}5.outputs.finished }}
 
   windows-arm64-build-7:
     name: Windows arm64 - Stage 7/16
@@ -525,7 +647,10 @@ jobs:
       arch: arm64
       stage: 7
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-6.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}6.outputs.finished }}
 
   windows-arm64-build-8:
     name: Windows arm64 - Stage 8/16
@@ -537,7 +662,10 @@ jobs:
       arch: arm64
       stage: 8
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-7.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}7.outputs.finished }}
 
   windows-arm64-build-9:
     name: Windows arm64 - Stage 9/16
@@ -549,7 +677,10 @@ jobs:
       arch: arm64
       stage: 9
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-8.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}8.outputs.finished }}
 
   windows-arm64-build-10:
     name: Windows arm64 - Stage 10/16
@@ -561,7 +692,10 @@ jobs:
       arch: arm64
       stage: 10
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-9.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}9.outputs.finished }}
 
   windows-arm64-build-11:
     name: Windows arm64 - Stage 11/16
@@ -573,7 +707,10 @@ jobs:
       arch: arm64
       stage: 11
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-10.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}10.outputs.finished }}
 
   windows-arm64-build-12:
     name: Windows arm64 - Stage 12/16
@@ -585,7 +722,10 @@ jobs:
       arch: arm64
       stage: 12
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-11.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}11.outputs.finished }}
 
   windows-arm64-build-13:
     name: Windows arm64 - Stage 13/16
@@ -597,7 +737,10 @@ jobs:
       arch: arm64
       stage: 13
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-12.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}12.outputs.finished }}
 
   windows-arm64-build-14:
     name: Windows arm64 - Stage 14/16
@@ -609,7 +752,10 @@ jobs:
       arch: arm64
       stage: 14
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-13.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}13.outputs.finished }}
 
   windows-arm64-build-15:
     name: Windows arm64 - Stage 15/16
@@ -621,7 +767,10 @@ jobs:
       arch: arm64
       stage: 15
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-14.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}14.outputs.finished }}
 
   windows-arm64-build-16:
     name: Windows arm64 - Stage 16/16 (Final)
@@ -633,7 +782,10 @@ jobs:
       arch: arm64
       stage: 16
       from_artifact: true
-      finished: ${{ needs.windows-arm64-build-15.outputs.finished }}
+      finished: ${{ needs.windows-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}15.outputs.finished }}
 
   # ============================================================================
   # Windows x86 Build Chain (16 stages) - Optional
@@ -649,6 +801,9 @@ jobs:
       stage: 1
       from_artifact: false
       finished: 'false'
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   windows-x86-build-2:
     name: Windows x86 - Stage 2/16
@@ -660,7 +815,10 @@ jobs:
       arch: x86
       stage: 2
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-1.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   windows-x86-build-3:
     name: Windows x86 - Stage 3/16
@@ -672,7 +830,10 @@ jobs:
       arch: x86
       stage: 3
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-2.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}2.outputs.finished }}
 
   windows-x86-build-4:
     name: Windows x86 - Stage 4/16
@@ -684,7 +845,10 @@ jobs:
       arch: x86
       stage: 4
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-3.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}3.outputs.finished }}
 
   windows-x86-build-5:
     name: Windows x86 - Stage 5/16
@@ -696,7 +860,10 @@ jobs:
       arch: x86
       stage: 5
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-4.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}4.outputs.finished }}
 
   windows-x86-build-6:
     name: Windows x86 - Stage 6/16
@@ -708,7 +875,10 @@ jobs:
       arch: x86
       stage: 6
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-5.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}5.outputs.finished }}
 
   windows-x86-build-7:
     name: Windows x86 - Stage 7/16
@@ -720,7 +890,10 @@ jobs:
       arch: x86
       stage: 7
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-6.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}6.outputs.finished }}
 
   windows-x86-build-8:
     name: Windows x86 - Stage 8/16
@@ -732,7 +905,10 @@ jobs:
       arch: x86
       stage: 8
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-7.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}7.outputs.finished }}
 
   windows-x86-build-9:
     name: Windows x86 - Stage 9/16
@@ -744,7 +920,10 @@ jobs:
       arch: x86
       stage: 9
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-8.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}8.outputs.finished }}
 
   windows-x86-build-10:
     name: Windows x86 - Stage 10/16
@@ -756,7 +935,10 @@ jobs:
       arch: x86
       stage: 10
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-9.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}9.outputs.finished }}
 
   windows-x86-build-11:
     name: Windows x86 - Stage 11/16
@@ -768,7 +950,10 @@ jobs:
       arch: x86
       stage: 11
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-10.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}10.outputs.finished }}
 
   windows-x86-build-12:
     name: Windows x86 - Stage 12/16
@@ -780,7 +965,10 @@ jobs:
       arch: x86
       stage: 12
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-11.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}11.outputs.finished }}
 
   windows-x86-build-13:
     name: Windows x86 - Stage 13/16
@@ -792,7 +980,10 @@ jobs:
       arch: x86
       stage: 13
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-12.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}12.outputs.finished }}
 
   windows-x86-build-14:
     name: Windows x86 - Stage 14/16
@@ -804,7 +995,10 @@ jobs:
       arch: x86
       stage: 14
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-13.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}13.outputs.finished }}
 
   windows-x86-build-15:
     name: Windows x86 - Stage 15/16
@@ -816,7 +1010,10 @@ jobs:
       arch: x86
       stage: 15
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-14.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}14.outputs.finished }}
 
   windows-x86-build-16:
     name: Windows x86 - Stage 16/16 (Final)
@@ -828,7 +1025,10 @@ jobs:
       arch: x86
       stage: 16
       from_artifact: true
-      finished: ${{ needs.windows-x86-build-15.outputs.finished }}
+      finished: ${{ needs.windows-x86-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}15.outputs.finished }}
 
   # ============================================================================
   # macOS x64 Build Chain (16 stages)
@@ -844,6 +1044,9 @@ jobs:
       stage: 1
       from_artifact: false
       finished: 'false'
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   macos-x64-build-2:
     name: macOS x64 - Stage 2/16
@@ -855,7 +1058,10 @@ jobs:
       arch: x64
       stage: 2
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-1.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   macos-x64-build-3:
     name: macOS x64 - Stage 3/16
@@ -867,7 +1073,10 @@ jobs:
       arch: x64
       stage: 3
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-2.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}2.outputs.finished }}
 
   macos-x64-build-4:
     name: macOS x64 - Stage 4/16
@@ -879,7 +1088,10 @@ jobs:
       arch: x64
       stage: 4
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-3.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}3.outputs.finished }}
 
   macos-x64-build-5:
     name: macOS x64 - Stage 5/16
@@ -891,7 +1103,10 @@ jobs:
       arch: x64
       stage: 5
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-4.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}4.outputs.finished }}
 
   macos-x64-build-6:
     name: macOS x64 - Stage 6/16
@@ -903,7 +1118,10 @@ jobs:
       arch: x64
       stage: 6
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-5.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}5.outputs.finished }}
 
   macos-x64-build-7:
     name: macOS x64 - Stage 7/16
@@ -915,7 +1133,10 @@ jobs:
       arch: x64
       stage: 7
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-6.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}6.outputs.finished }}
 
   macos-x64-build-8:
     name: macOS x64 - Stage 8/16
@@ -927,7 +1148,10 @@ jobs:
       arch: x64
       stage: 8
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-7.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}7.outputs.finished }}
 
   macos-x64-build-9:
     name: macOS x64 - Stage 9/16
@@ -939,7 +1163,10 @@ jobs:
       arch: x64
       stage: 9
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-8.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}8.outputs.finished }}
 
   macos-x64-build-10:
     name: macOS x64 - Stage 10/16
@@ -951,7 +1178,10 @@ jobs:
       arch: x64
       stage: 10
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-9.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}9.outputs.finished }}
 
   macos-x64-build-11:
     name: macOS x64 - Stage 11/16
@@ -963,7 +1193,10 @@ jobs:
       arch: x64
       stage: 11
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-10.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}10.outputs.finished }}
 
   macos-x64-build-12:
     name: macOS x64 - Stage 12/16
@@ -975,7 +1208,10 @@ jobs:
       arch: x64
       stage: 12
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-11.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}11.outputs.finished }}
 
   macos-x64-build-13:
     name: macOS x64 - Stage 13/16
@@ -987,7 +1223,10 @@ jobs:
       arch: x64
       stage: 13
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-12.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}12.outputs.finished }}
 
   macos-x64-build-14:
     name: macOS x64 - Stage 14/16
@@ -999,7 +1238,10 @@ jobs:
       arch: x64
       stage: 14
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-13.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}13.outputs.finished }}
 
   macos-x64-build-15:
     name: macOS x64 - Stage 15/16
@@ -1011,7 +1253,10 @@ jobs:
       arch: x64
       stage: 15
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-14.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}14.outputs.finished }}
 
   macos-x64-build-16:
     name: macOS x64 - Stage 16/16 (Final)
@@ -1023,7 +1268,10 @@ jobs:
       arch: x64
       stage: 16
       from_artifact: true
-      finished: ${{ needs.macos-x64-build-15.outputs.finished }}
+      finished: ${{ needs.macos-x64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}15.outputs.finished }}
 
   # ============================================================================
   # macOS arm64 Build Chain (16 stages)
@@ -1039,6 +1287,9 @@ jobs:
       stage: 1
       from_artifact: false
       finished: 'false'
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   macos-arm64-build-2:
     name: macOS arm64 - Stage 2/16
@@ -1050,7 +1301,10 @@ jobs:
       arch: arm64
       stage: 2
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-1.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   macos-arm64-build-3:
     name: macOS arm64 - Stage 3/16
@@ -1062,7 +1316,10 @@ jobs:
       arch: arm64
       stage: 3
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-2.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}2.outputs.finished }}
 
   macos-arm64-build-4:
     name: macOS arm64 - Stage 4/16
@@ -1074,7 +1331,10 @@ jobs:
       arch: arm64
       stage: 4
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-3.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}3.outputs.finished }}
 
   macos-arm64-build-5:
     name: macOS arm64 - Stage 5/16
@@ -1086,7 +1346,10 @@ jobs:
       arch: arm64
       stage: 5
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-4.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}4.outputs.finished }}
 
   macos-arm64-build-6:
     name: macOS arm64 - Stage 6/16
@@ -1098,7 +1361,10 @@ jobs:
       arch: arm64
       stage: 6
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-5.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}5.outputs.finished }}
 
   macos-arm64-build-7:
     name: macOS arm64 - Stage 7/16
@@ -1110,7 +1376,10 @@ jobs:
       arch: arm64
       stage: 7
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-6.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}6.outputs.finished }}
 
   macos-arm64-build-8:
     name: macOS arm64 - Stage 8/16
@@ -1122,7 +1391,10 @@ jobs:
       arch: arm64
       stage: 8
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-7.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}7.outputs.finished }}
 
   macos-arm64-build-9:
     name: macOS arm64 - Stage 9/16
@@ -1134,7 +1406,10 @@ jobs:
       arch: arm64
       stage: 9
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-8.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}8.outputs.finished }}
 
   macos-arm64-build-10:
     name: macOS arm64 - Stage 10/16
@@ -1146,7 +1421,10 @@ jobs:
       arch: arm64
       stage: 10
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-9.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}9.outputs.finished }}
 
   macos-arm64-build-11:
     name: macOS arm64 - Stage 11/16
@@ -1158,7 +1436,10 @@ jobs:
       arch: arm64
       stage: 11
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-10.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}10.outputs.finished }}
 
   macos-arm64-build-12:
     name: macOS arm64 - Stage 12/16
@@ -1170,7 +1451,10 @@ jobs:
       arch: arm64
       stage: 12
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-11.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}11.outputs.finished }}
 
   macos-arm64-build-13:
     name: macOS arm64 - Stage 13/16
@@ -1182,7 +1466,10 @@ jobs:
       arch: arm64
       stage: 13
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-12.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}12.outputs.finished }}
 
   macos-arm64-build-14:
     name: macOS arm64 - Stage 14/16
@@ -1194,7 +1481,10 @@ jobs:
       arch: arm64
       stage: 14
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-13.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}13.outputs.finished }}
 
   macos-arm64-build-15:
     name: macOS arm64 - Stage 15/16
@@ -1206,7 +1496,10 @@ jobs:
       arch: arm64
       stage: 15
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-14.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}14.outputs.finished }}
 
   macos-arm64-build-16:
     name: macOS arm64 - Stage 16/16 (Final)
@@ -1218,7 +1511,10 @@ jobs:
       arch: arm64
       stage: 16
       from_artifact: true
-      finished: ${{ needs.macos-arm64-build-15.outputs.finished }}
+      finished: ${{ needs.macos-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}15.outputs.finished }}
 
   # ============================================================================
   # Linux arm64 Build Chain (16 stages)
@@ -1234,6 +1530,9 @@ jobs:
       stage: 1
       from_artifact: false
       finished: 'false'
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   linux-arm64-build-2:
     name: Linux arm64 - Stage 2/16
@@ -1245,7 +1544,10 @@ jobs:
       arch: arm64
       stage: 2
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-1.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
 
   linux-arm64-build-3:
     name: Linux arm64 - Stage 3/16
@@ -1257,7 +1559,10 @@ jobs:
       arch: arm64
       stage: 3
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-2.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}2.outputs.finished }}
 
   linux-arm64-build-4:
     name: Linux arm64 - Stage 4/16
@@ -1269,7 +1574,10 @@ jobs:
       arch: arm64
       stage: 4
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-3.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}3.outputs.finished }}
 
   linux-arm64-build-5:
     name: Linux arm64 - Stage 5/16
@@ -1281,7 +1589,10 @@ jobs:
       arch: arm64
       stage: 5
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-4.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}4.outputs.finished }}
 
   linux-arm64-build-6:
     name: Linux arm64 - Stage 6/16
@@ -1293,7 +1604,10 @@ jobs:
       arch: arm64
       stage: 6
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-5.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}5.outputs.finished }}
 
   linux-arm64-build-7:
     name: Linux arm64 - Stage 7/16
@@ -1305,7 +1619,10 @@ jobs:
       arch: arm64
       stage: 7
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-6.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}6.outputs.finished }}
 
   linux-arm64-build-8:
     name: Linux arm64 - Stage 8/16
@@ -1317,7 +1634,10 @@ jobs:
       arch: arm64
       stage: 8
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-7.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}7.outputs.finished }}
 
   linux-arm64-build-9:
     name: Linux arm64 - Stage 9/16
@@ -1329,7 +1649,10 @@ jobs:
       arch: arm64
       stage: 9
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-8.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}8.outputs.finished }}
 
   linux-arm64-build-10:
     name: Linux arm64 - Stage 10/16
@@ -1341,7 +1664,10 @@ jobs:
       arch: arm64
       stage: 10
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-9.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}9.outputs.finished }}
 
   linux-arm64-build-11:
     name: Linux arm64 - Stage 11/16
@@ -1353,7 +1679,10 @@ jobs:
       arch: arm64
       stage: 11
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-10.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}10.outputs.finished }}
 
   linux-arm64-build-12:
     name: Linux arm64 - Stage 12/16
@@ -1365,7 +1694,10 @@ jobs:
       arch: arm64
       stage: 12
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-11.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}11.outputs.finished }}
 
   linux-arm64-build-13:
     name: Linux arm64 - Stage 13/16
@@ -1377,7 +1709,10 @@ jobs:
       arch: arm64
       stage: 13
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-12.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}12.outputs.finished }}
 
   linux-arm64-build-14:
     name: Linux arm64 - Stage 14/16
@@ -1389,7 +1724,10 @@ jobs:
       arch: arm64
       stage: 14
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-13.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}13.outputs.finished }}
 
   linux-arm64-build-15:
     name: Linux arm64 - Stage 15/16
@@ -1401,7 +1739,10 @@ jobs:
       arch: arm64
       stage: 15
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-14.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}14.outputs.finished }}
 
   linux-arm64-build-16:
     name: Linux arm64 - Stage 16/16 (Final)
@@ -1413,7 +1754,10 @@ jobs:
       arch: arm64
       stage: 16
       from_artifact: true
-      finished: ${{ needs.linux-arm64-build-15.outputs.finished }}
+      finished: ${{ needs.linux-arm64-build-
+      build_type: ${{ inputs.build_type }}
+    secrets:
+      BRAVE_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}15.outputs.finished }}
 
   # ============================================================================
   # Collect All Artifacts - Waits for ALL selected builds to complete
