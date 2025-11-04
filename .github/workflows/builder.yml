@@ -23,6 +23,15 @@ on:
         description: 'Build already finished in previous stage'
         required: true
         type: string
+      build_type:
+        description: 'Build type: Component (dev/debug) or Release (official)'
+        required: false
+        type: string
+        default: 'Component'
+    secrets:
+      BRAVE_ENV_CONFIG:
+        description: 'Contents of .env file for Brave build (API keys, secrets, etc.)'
+        required: false
     outputs:
       finished:
         description: 'Whether the build has finished'
@@ -47,10 +56,12 @@ jobs:
           python-version: '3.11'
       
       - name: Install cleanup-disk action dependencies
+        if: ${{ inputs.finished != 'true' }}
         run: npm install
         working-directory: ./.github/actions/cleanup-disk
       
       - name: Free up disk space (${{ inputs.platform }})
+        if: ${{ inputs.finished != 'true' }}
         uses: ./.github/actions/cleanup-disk
         with:
           platform: ${{ inputs.platform }}
@@ -67,6 +78,8 @@ jobs:
           from_artifact: ${{ inputs.from_artifact }}
           platform: ${{ inputs.platform }}
           arch: ${{ inputs.arch }}
+          build_type: ${{ inputs.build_type }}
+          env_config: ${{ secrets.BRAVE_ENV_CONFIG }}
     
     outputs:
       finished: ${{ steps.stage.outputs.finished }}

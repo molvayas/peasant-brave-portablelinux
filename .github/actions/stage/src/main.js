@@ -23,6 +23,8 @@ async function run() {
         const fromArtifact = core.getBooleanInput('from_artifact', {required: true});
         const platform = core.getInput('platform') || 'linux';
         const arch = core.getInput('arch') || 'x64';
+        const buildType = core.getInput('build_type') || 'Component';
+        const envConfig = core.getInput('env_config') || '';
         
         // Determine repository path using GITHUB_WORKSPACE (works on all platforms)
         const repoPath = process.env.GITHUB_WORKSPACE;
@@ -34,13 +36,19 @@ async function run() {
         // Read Brave version from repository
         const braveVersion = await readBraveVersion(repoPath);
         
+        console.log(`Build configuration:`);
+        console.log(`  - Build type: ${buildType}`);
+        console.log(`  - .env config: ${envConfig ? 'provided' : 'not provided'}`);
+        
         // Create and run orchestrator
         const orchestrator = new BuildOrchestrator({
             finished,
             fromArtifact,
             braveVersion,
             platform,
-            arch
+            arch,
+            buildType,
+            envConfig
         });
         
         await orchestrator.run();

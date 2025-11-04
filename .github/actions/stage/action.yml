@@ -19,6 +19,14 @@ inputs:
     description: 'Target architecture (x64, arm64)'
     required: false
     default: 'x64'
+  build_type:
+    description: 'Build type: Component (dev/debug) or Release (official)'
+    required: false
+    default: 'Component'
+  env_config:
+    description: 'Contents of .env file for Brave build (API keys, secrets, etc.)'
+    required: false
+    default: ''
 
 outputs:
   finished:

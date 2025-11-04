@@ -17,18 +17,34 @@ class LinuxBuilder {
         this.arch = arch;
         this.platform = 'linux';
         this.config = getPlatformConfig(this.platform);
-        this.paths = getBuildPaths(this.platform);
+        // buildType will be set by orchestrator after construction
+        this.buildType = 'Component';
         // jobStartTime will be set by orchestrator after construction
         this.jobStartTime = null;
+        // envConfig will be set by orchestrator after construction
+        this.envConfig = '';
+        // paths will be set after buildType is known
+        this.paths = null;
+    }
+    
+    /**
+     * Initialize paths based on buildType
+     */
+    _ensurePaths() {
+        if (!this.paths) {
+            this.paths = getBuildPaths(this.platform, this.buildType);
+        }
     }
 
     /**
      * Initialize the build environment
      */
     async initialize() {
+        this._ensurePaths();
         console.log('=== Initializing Linux Build Environment ===');
         console.log(`Brave version: ${this.braveVersion}`);
         console.log(`Architecture: ${this.arch}`);
+        console.log(`Build type: ${this.buildType}`);
         console.log(`Work directory: ${this.paths.workDir}`);
         
         // Install base dependencies
@@ -73,6 +89,7 @@ class LinuxBuilder {
      * Run npm run build stage
      */
     async runBuild() {
+        this._ensurePaths();
         console.log('\n=== Stage: npm run build ===');
         
         // Calculate timeout based on time elapsed since job start
@@ -91,9 +108,21 @@ class LinuxBuilder {
         console.log(`Remaining time calculated: ${timing.remainingHours} hours`);
         console.log(`Final timeout: ${timing.timeoutMinutes} minutes (${timing.remainingHours} hours)`);
         
-        console.log('Running npm run build (component build)...');
+        // Build command based on buildType
+        let buildArgs;
+        if (this.buildType === 'Release') {
+            // Release: build + create distribution packages (unsigned)
+            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing'];
+            console.log('Running npm run build Release with create_dist (unsigned)...');
+        } else {
+            // Component: just build
+            buildArgs = ['run', 'build'];
+            console.log('Running npm run build (component)...');
+        }
         
-        const buildCode = await execWithTimeout('npm', ['run', 'build'], {
+        console.log(`Command: npm ${buildArgs.join(' ')}`);
+        
+        const buildCode = await execWithTimeout('npm', buildArgs, {
             cwd: this.paths.braveDir,
             timeoutSeconds: timing.timeoutSeconds
         });
@@ -120,52 +149,105 @@ class LinuxBuilder {
      * Package the built browser
      */
     async package() {
+        this._ensurePaths();
         console.log('\n=== Stage: Package ===');
-        console.log('Packaging built browser...');
         
-        const braveExe = path.join(this.paths.outDir, this.config.executable);
-        
-        try {
-            await fs.access(braveExe);
-            console.log(`Found brave executable at ${braveExe}`);
-        } catch (e) {
-            throw new Error(`Brave executable not found at ${braveExe}`);
-        }
-        
-        // Create tarball
-        const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.${this.config.packageFormat}`;
-        const packagePath = path.join(this.paths.workDir, packageName);
-        
-        console.log(`Creating package: ${packageName}`);
-        
-        await exec.exec('tar', [
-            '-cJf', packagePath,
-            '-C', this.paths.outDir,
-            'brave', 'chrome_crashpad_handler',
-            'libEGL.so', 'libGLESv2.so', 'libvk_swiftshader.so',
-            'libvulkan.so.1', 'locales', 'resources.pak',
-            'chrome_100_percent.pak', 'chrome_200_percent.pak',
-            'icudtl.dat', 'snapshot_blob.bin', 'v8_context_snapshot.bin'
-        ], {
-            ignoreReturnCode: true,
-            env: {
-                ...process.env,
-                LC_ALL: 'C'
+        if (this.buildType === 'Release') {
+            // Release builds: grab distribution package from brave_dist/
+            console.log('Packaging Release build from brave_dist...');
+            
+            const braveDistDir = path.join(this.paths.srcDir, 'out', 'Release', 'brave_dist');
+            
+            // Look for the distribution zip file
+            // Format: Brave-v{version}-linux-{arch}.zip
+            const expectedZipName = `Brave-v${this.braveVersion}-linux-${this.arch}.zip`;
+            const distZipPath = path.join(braveDistDir, expectedZipName);
+            
+            try {
+                await fs.access(distZipPath);
+                console.log(`✓ Found distribution package: ${expectedZipName}`);
+            } catch (e) {
+                console.log(`Distribution package not found at ${distZipPath}`);
+                console.log(`Listing contents of ${braveDistDir}...`);
+                try {
+                    const files = await fs.readdir(braveDistDir);
+                    console.log('Files in brave_dist:', files);
+                    // Try to find any .zip file
+                    const zipFile = files.find(f => f.endsWith('.zip'));
+                    if (zipFile) {
+                        console.log(`Using found zip file: ${zipFile}`);
+                        const foundZipPath = path.join(braveDistDir, zipFile);
+                        const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.zip`;
+                        const packagePath = path.join(this.paths.workDir, packageName);
+                        await fs.copyFile(foundZipPath, packagePath);
+                        console.log('✓ Package copied successfully');
+                        return { packagePath, packageName };
+                    }
+                } catch (e2) {
+                    console.error('Error listing brave_dist:', e2.message);
+                }
+                throw new Error(`Distribution package not found: ${expectedZipName}`);
             }
-        });
-        
-        console.log('✓ Package created successfully');
-        
-        return {
-            packagePath,
-            packageName
-        };
+            
+            // Copy to work directory with standardized name
+            const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.zip`;
+            const packagePath = path.join(this.paths.workDir, packageName);
+            
+            await fs.copyFile(distZipPath, packagePath);
+            console.log('✓ Package copied successfully');
+            
+            return {
+                packagePath,
+                packageName
+            };
+            
+        } else {
+            // Component builds: create tarball from entire out directory (exclude obj)
+            console.log('Packaging Component build from output directory...');
+            
+            const outDir = path.join(this.paths.srcDir, 'out');
+            
+            try {
+                await fs.access(outDir);
+                console.log(`Found out directory at ${outDir}`);
+            } catch (e) {
+                throw new Error(`Out directory not found at ${outDir}`);
+            }
+            
+            // Create tarball of entire out directory, excluding obj folders
+            const packageName = `brave-out-${this.braveVersion}-${this.platform}-${this.arch}.${this.config.packageFormat}`;
+            const packagePath = path.join(this.paths.workDir, packageName);
+            
+            console.log(`Creating package: ${packageName}`);
+            console.log('Archiving entire out directory (excluding obj folders)...');
+            
+            await exec.exec('tar', [
+                '-cJf', packagePath,
+                '--exclude=out/*/obj',  // Exclude obj directories
+                '-C', this.paths.srcDir,
+                'out'
+            ], {
+                ignoreReturnCode: true,
+                env: {
+                    ...process.env,
+                    LC_ALL: 'C'
+                }
+            });
+            
+            console.log('✓ Package created successfully');
+            
+            return {
+                packagePath,
+                packageName
+            };
+        }
     }
 
     /**
      * Read current build stage from marker file
      */
     async getCurrentStage() {
+        this._ensurePaths();
         try {
             const markerContent = await fs.readFile(this.paths.markerFile, 'utf-8');
             const stage = markerContent.trim();
@@ -181,6 +263,7 @@ class LinuxBuilder {
      * Update build stage marker
      */
     async setStage(stage) {
+        this._ensurePaths();
         await fs.writeFile(this.paths.markerFile, stage);
         console.log(`✓ Updated stage marker to: ${stage}`);
     }

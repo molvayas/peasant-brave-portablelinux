@@ -29,6 +29,8 @@ class BuildOrchestrator {
         this.braveVersion = options.braveVersion;
         this.platform = options.platform || 'linux';
         this.arch = options.arch || 'x64';
+        this.buildType = options.buildType || 'Component';
+        this.envConfig = options.envConfig || '';
         
         // Track job start time for timeout calculations
         // This is set at orchestrator creation (top of action run)
@@ -37,8 +39,10 @@ class BuildOrchestrator {
         this.artifact = new DefaultArtifactClient();
         this.builder = createBuilder(this.platform, this.braveVersion, this.arch);
         
-        // Pass job start time to builder
+        // Pass configuration to builder
         this.builder.jobStartTime = this.jobStartTime;
+        this.builder.buildType = this.buildType;
+        this.builder.envConfig = this.envConfig;
         
         // Filter debug messages from artifact operations
         setupArtifactDebugFilter();
@@ -57,8 +61,10 @@ class BuildOrchestrator {
         console.log(`Platform: ${this.platform}`);
         console.log(`Architecture: ${this.arch}`);
         console.log(`Brave Version: ${this.braveVersion}`);
+        console.log(`Build Type: ${this.buildType}`);
         console.log(`Finished: ${this.finished}`);
         console.log(`From Artifact: ${this.fromArtifact}`);
+        console.log(`.env Config: ${this.envConfig ? 'Provided (will be created)' : 'Not provided'}`);
         console.log('========================================\n');
 
         // If already finished, just set output and exit
@@ -120,6 +126,9 @@ class BuildOrchestrator {
         } else {
             await this._initializeFromScratch();
         }
+        
+        // Create .env file if configuration provided
+        await this._createEnvFile();
     }
 
     /**
@@ -261,6 +270,9 @@ class BuildOrchestrator {
     async _createCheckpoint() {
         console.log('\n=== Creating Checkpoint Artifact ===');
         
+        // Delete .env file before checkpointing (SECURITY: prevent secrets in artifacts)
+        await this._deleteEnvFile();
+        
         // Wait for filesystem sync
         await waitAndSync(TIMEOUTS.CLEANUP_WAIT);
         await waitAndSync(TIMEOUTS.SYNC_WAIT);
@@ -316,6 +328,46 @@ class BuildOrchestrator {
         } catch (e) {
             console.error(`Failed to create checkpoint: ${e.message}`);
             throw e;
+        }
+    }
+    
+    /**
+     * Create .env file in brave directory from envConfig
+     */
+    async _createEnvFile() {
+        if (!this.envConfig) {
+            console.log('No .env configuration provided, skipping .env file creation');
+            return;
+        }
+        
+        console.log('\n=== Creating .env File ===');
+        const envFilePath = path.join(this.builder.paths.braveDir, '.env');
+        
+        try {
+            await fs.writeFile(envFilePath, this.envConfig);
+            console.log(`✓ Created .env file at ${envFilePath}`);
+            console.log(`  (${this.envConfig.split('\n').length} lines)`);
+        } catch (e) {
+            console.error(`Failed to create .env file: ${e.message}`);
+            throw e;
+        }
+    }
+    
+    /**
+     * Delete .env file before checkpointing (security measure)
+     */
+    async _deleteEnvFile() {
+        const envFilePath = path.join(this.builder.paths.braveDir, '.env');
+        
+        try {
+            await fs.unlink(envFilePath);
+            console.log('✓ Deleted .env file (security: preventing secrets in checkpoint artifact)');
+        } catch (e) {
+            if (e.code === 'ENOENT') {
+                console.log('No .env file to delete (already absent)');
+            } else {
+                console.warn(`Warning: Failed to delete .env file: ${e.message}`);
+            }
         }
     }
 }

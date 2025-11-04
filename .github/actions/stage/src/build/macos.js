@@ -16,18 +16,34 @@ class MacOSBuilder {
         this.arch = arch;
         this.platform = 'macos';
         this.config = getPlatformConfig(this.platform);
-        this.paths = getBuildPaths(this.platform);
+        // buildType will be set by orchestrator after construction
+        this.buildType = 'Component';
         // jobStartTime will be set by orchestrator after construction
         this.jobStartTime = null;
+        // envConfig will be set by orchestrator after construction
+        this.envConfig = '';
+        // paths will be set after buildType is known
+        this.paths = null;
+    }
+    
+    /**
+     * Initialize paths based on buildType
+     */
+    _ensurePaths() {
+        if (!this.paths) {
+            this.paths = getBuildPaths(this.platform, this.buildType);
+        }
     }
 
     /**
      * Initialize the build environment
      */
     async initialize() {
+        this._ensurePaths();
         console.log('=== Initializing macOS Build Environment ===');
         console.log(`Brave version: ${this.braveVersion}`);
         console.log(`Architecture: ${this.arch}`);
+        console.log(`Build type: ${this.buildType}`);
         console.log(`Work directory: ${this.paths.workDir}`);
         
         // Install GNU tar and coreutils (for gtimeout)
@@ -75,6 +91,7 @@ class MacOSBuilder {
      * Run npm run build stage
      */
     async runBuild() {
+        this._ensurePaths();
         console.log('\n=== Stage: npm run build ===');
         
         // Calculate timeout based on time elapsed since job start
@@ -92,10 +109,22 @@ class MacOSBuilder {
         console.log(`Remaining time calculated: ${timing.remainingHours} hours`);
         console.log(`Final timeout: ${timing.timeoutMinutes} minutes (${timing.remainingHours} hours)`);
         
-        console.log('Running npm run build (component build)...');
+        // Build command based on buildType
+        let buildArgs;
+        if (this.buildType === 'Release') {
+            // Release: build + create distribution packages (unsigned)
+            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing'];
+            console.log('Running npm run build Release with create_dist (unsigned)...');
+        } else {
+            // Component: just build
+            buildArgs = ['run', 'build'];
+            console.log('Running npm run build (component)...');
+        }
+        
+        console.log(`Command: npm ${buildArgs.join(' ')}`);
         
         // Use gtimeout on macOS (from coreutils)
-        const buildCode = await execWithTimeout('npm', ['run', 'build'], {
+        const buildCode = await execWithTimeout('npm', buildArgs, {
             cwd: this.paths.braveDir,
             timeoutSeconds: timing.timeoutSeconds,
             useGTimeout: true  // Use gtimeout instead of timeout on macOS
@@ -123,53 +152,109 @@ class MacOSBuilder {
      * Package the built browser
      */
     async package() {
+        this._ensurePaths();
         console.log('\n=== Stage: Package ===');
-        console.log('Packaging built browser for macOS...');
         
-        const outDir = path.join(this.paths.srcDir, 'out');
-        
-        try {
-            await fs.access(outDir);
-            console.log(`Found out directory at ${outDir}`);
-        } catch (e) {
-            throw new Error(`Out directory not found at ${outDir}`);
-        }
-        
-        // Create tarball of entire out directory
-        const packageName = `brave-out-${this.braveVersion}-${this.platform}.${this.config.packageFormat}`;
-        const packagePath = path.join(this.paths.workDir, packageName);
-        
-        console.log(`Creating archive of entire out directory: ${packageName}`);
-        console.log('This may take a while...');
-        
-        // Use gtar (GNU tar) with compression, exclude obj directory
-        await exec.exec('gtar', [
-            'caf', packagePath,
-            '-H', 'posix',
-            '--atime-preserve',
-            '--exclude=out/*/obj',  // Exclude obj directories
-            '-C', this.paths.srcDir,
-            'out'
-        ], {
-            ignoreReturnCode: true,
-            env: {
-                ...process.env,
-                LC_ALL: 'C'  // Use C locale to avoid "Illegal byte sequence" errors on macOS
+        if (this.buildType === 'Release') {
+            // Release builds: grab distribution package from brave_dist/
+            console.log('Packaging Release build from brave_dist...');
+            
+            const braveDistDir = path.join(this.paths.srcDir, 'out', 'Release', 'brave_dist');
+            
+            // Look for the distribution zip file
+            // Format: Brave-v{version}-darwin-{arch}.zip
+            const expectedZipName = `Brave-v${this.braveVersion}-darwin-${this.arch}.zip`;
+            const distZipPath = path.join(braveDistDir, expectedZipName);
+            
+            try {
+                await fs.access(distZipPath);
+                console.log(`✓ Found distribution package: ${expectedZipName}`);
+            } catch (e) {
+                console.log(`Distribution package not found at ${distZipPath}`);
+                console.log(`Listing contents of ${braveDistDir}...`);
+                try {
+                    const files = await fs.readdir(braveDistDir);
+                    console.log('Files in brave_dist:', files);
+                    // Try to find any .zip or .dmg file
+                    const distFile = files.find(f => f.endsWith('.zip') || f.endsWith('.dmg'));
+                    if (distFile) {
+                        console.log(`Using found distribution file: ${distFile}`);
+                        const foundDistPath = path.join(braveDistDir, distFile);
+                        const ext = distFile.endsWith('.zip') ? 'zip' : 'dmg';
+                        const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.${ext}`;
+                        const packagePath = path.join(this.paths.workDir, packageName);
+                        await fs.copyFile(foundDistPath, packagePath);
+                        console.log('✓ Package copied successfully');
+                        return { packagePath, packageName };
+                    }
+                } catch (e2) {
+                    console.error('Error listing brave_dist:', e2.message);
+                }
+                throw new Error(`Distribution package not found: ${expectedZipName}`);
             }
-        });
-        
-        console.log('✓ Package created successfully');
-        
-        return {
-            packagePath,
-            packageName
-        };
+            
+            // Copy to work directory with standardized name
+            const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.zip`;
+            const packagePath = path.join(this.paths.workDir, packageName);
+            
+            await fs.copyFile(distZipPath, packagePath);
+            console.log('✓ Package copied successfully');
+            
+            return {
+                packagePath,
+                packageName
+            };
+            
+        } else {
+            // Component builds: create tarball of entire out directory
+            console.log('Packaging Component build from output directory...');
+            
+            const outDir = path.join(this.paths.srcDir, 'out');
+            
+            try {
+                await fs.access(outDir);
+                console.log(`Found out directory at ${outDir}`);
+            } catch (e) {
+                throw new Error(`Out directory not found at ${outDir}`);
+            }
+            
+            // Create tarball of entire out directory
+            const packageName = `brave-out-${this.braveVersion}-${this.platform}.${this.config.packageFormat}`;
+            const packagePath = path.join(this.paths.workDir, packageName);
+            
+            console.log(`Creating archive of entire out directory: ${packageName}`);
+            console.log('This may take a while...');
+            
+            // Use gtar (GNU tar) with compression, exclude obj directory
+            await exec.exec('gtar', [
+                'caf', packagePath,
+                '-H', 'posix',
+                '--atime-preserve',
+                '--exclude=out/*/obj',  // Exclude obj directories
+                '-C', this.paths.srcDir,
+                'out'
+            ], {
+                ignoreReturnCode: true,
+                env: {
+                    ...process.env,
+                    LC_ALL: 'C'  // Use C locale to avoid "Illegal byte sequence" errors on macOS
+                }
+            });
+            
+            console.log('✓ Package created successfully');
+            
+            return {
+                packagePath,
+                packageName
+            };
+        }
     }
 
     /**
      * Read current build stage from marker file
      */
     async getCurrentStage() {
+        this._ensurePaths();
         try {
             const markerContent = await fs.readFile(this.paths.markerFile, 'utf-8');
             const stage = markerContent.trim();
@@ -185,6 +270,7 @@ class MacOSBuilder {
      * Update build stage marker
      */
     async setStage(stage) {
+        this._ensurePaths();
         await fs.writeFile(this.paths.markerFile, stage);
         console.log(`✓ Updated stage marker to: ${stage}`);
     }

@@ -133,17 +133,20 @@ function getArchConfig(arch) {
 /**
  * Get paths for the build
  * @param {string} platform - Platform name
+ * @param {string} buildType - Build type (Component or Release)
  * @returns {object} Build paths
  */
-function getBuildPaths(platform) {
+function getBuildPaths(platform, buildType = 'Component') {
     const platformConfig = getPlatformConfig(platform);
     const workDir = platformConfig.workDir;
+    // Use buildType for output directory name (Component or Release)
+    const outputDirName = buildType;
     
     return {
         workDir,
         srcDir: path.join(workDir, 'src'),
         braveDir: path.join(workDir, 'src', 'brave'),
-        outDir: path.join(workDir, 'src', 'out', platformConfig.outputDirName),
+        outDir: path.join(workDir, 'src', 'out', outputDirName),
         markerFile: path.join(workDir, 'build-stage.txt')
     };
 }

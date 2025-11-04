@@ -16,18 +16,34 @@ class WindowsBuilder {
         this.arch = arch;
         this.platform = 'windows';
         this.config = getPlatformConfig(this.platform);
-        this.paths = getBuildPaths(this.platform);
+        // buildType will be set by orchestrator after construction
+        this.buildType = 'Component';
         // jobStartTime will be set by orchestrator after construction
         this.jobStartTime = null;
+        // envConfig will be set by orchestrator after construction
+        this.envConfig = '';
+        // paths will be set after buildType is known
+        this.paths = null;
+    }
+    
+    /**
+     * Initialize paths based on buildType
+     */
+    _ensurePaths() {
+        if (!this.paths) {
+            this.paths = getBuildPaths(this.platform, this.buildType);
+        }
     }
 
     /**
      * Initialize the build environment
      */
     async initialize() {
+        this._ensurePaths();
         console.log('=== Initializing Windows Build Environment ===');
         console.log(`Brave version: ${this.braveVersion}`);
         console.log(`Architecture: ${this.arch}`);
+        console.log(`Build type: ${this.buildType}`);
         console.log(`Work directory: ${this.paths.workDir}`);
         
         // Set Windows-specific environment variables
@@ -75,6 +91,7 @@ class WindowsBuilder {
      * Run npm run build stage with Windows-specific timeout handling
      */
     async runBuild() {
+        this._ensurePaths();
         console.log('\n=== Stage: npm run build ===');
         
         // Calculate timeout based on time elapsed since job start
@@ -103,10 +120,22 @@ class WindowsBuilder {
             remainingTime = MIN_TIMEOUT;
         }
         
-        console.log(`Final timeout: ${(remainingTime / 60000).toFixed(0)} minutes`);
-        console.log('Running npm run build (component build)...');
+        // Build command based on buildType
+        let buildArgs;
+        if (this.buildType === 'Release') {
+            // Release: build + create distribution packages (unsigned)
+            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing'];
+            console.log('Running npm run build Release with create_dist (unsigned)...');
+        } else {
+            // Component: just build
+            buildArgs = ['run', 'build'];
+            console.log('Running npm run build (component)...');
+        }
         
-        const buildCode = await this._execWithTimeout('npm', ['run', 'build'], {
+        console.log(`Final timeout: ${(remainingTime / 60000).toFixed(0)} minutes`);
+        console.log(`Command: npm ${buildArgs.join(' ')}`);
+        
+        const buildCode = await this._execWithTimeout('npm', buildArgs, {
             cwd: this.paths.braveDir,
             timeout: remainingTime
         });
@@ -141,46 +170,102 @@ class WindowsBuilder {
      * Package the built browser
      */
     async package() {
+        this._ensurePaths();
         console.log('\n=== Stage: Package ===');
-        console.log('Packaging built browser for Windows...');
         
-        const outDir = path.join(this.paths.srcDir, 'out');
-        
-        try {
-            await fs.access(outDir);
-            console.log(`Found out directory at ${outDir}`);
-        } catch (e) {
-            throw new Error(`Out directory not found at ${outDir}`);
+        if (this.buildType === 'Release') {
+            // Release builds: grab distribution package from brave_dist/
+            console.log('Packaging Release build from brave_dist...');
+            
+            const braveDistDir = path.join(this.paths.srcDir, 'out', 'Release', 'brave_dist');
+            
+            // Look for the distribution zip file
+            // Format: Brave-v{version}-win-{arch}.zip
+            const expectedZipName = `Brave-v${this.braveVersion}-win-${this.arch}.zip`;
+            const distZipPath = path.join(braveDistDir, expectedZipName);
+            
+            try {
+                await fs.access(distZipPath);
+                console.log(`✓ Found distribution package: ${expectedZipName}`);
+            } catch (e) {
+                console.log(`Distribution package not found at ${distZipPath}`);
+                console.log(`Listing contents of ${braveDistDir}...`);
+                try {
+                    const files = await fs.readdir(braveDistDir);
+                    console.log('Files in brave_dist:', files);
+                    // Try to find any .zip or .exe file
+                    const distFile = files.find(f => f.endsWith('.zip') || f.endsWith('.exe'));
+                    if (distFile) {
+                        console.log(`Using found distribution file: ${distFile}`);
+                        const foundDistPath = path.join(braveDistDir, distFile);
+                        const ext = distFile.split('.').pop();
+                        const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.${ext}`;
+                        const packagePath = path.join(this.paths.workDir, packageName);
+                        await fs.copyFile(foundDistPath, packagePath);
+                        console.log('✓ Package copied successfully');
+                        return { packagePath, packageName };
+                    }
+                } catch (e2) {
+                    console.error('Error listing brave_dist:', e2.message);
+                }
+                throw new Error(`Distribution package not found: ${expectedZipName}`);
+            }
+            
+            // Copy to work directory with standardized name
+            const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.zip`;
+            const packagePath = path.join(this.paths.workDir, packageName);
+            
+            await fs.copyFile(distZipPath, packagePath);
+            console.log('✓ Package copied successfully');
+            
+            return {
+                packagePath,
+                packageName
+            };
+            
+        } else {
+            // Component builds: create zip of entire out directory
+            console.log('Packaging Component build from output directory...');
+            
+            const outDir = path.join(this.paths.srcDir, 'out');
+            
+            try {
+                await fs.access(outDir);
+                console.log(`Found out directory at ${outDir}`);
+            } catch (e) {
+                throw new Error(`Out directory not found at ${outDir}`);
+            }
+            
+            // Create zip of entire out directory
+            const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.${this.config.packageFormat}`;
+            const packagePath = path.join(this.paths.workDir, packageName);
+            
+            console.log(`Creating archive: ${packageName}`);
+            console.log('Compressing out directory with 7z (excluding obj directory)...');
+            
+            // Use 7z with moderate compression, exclude obj directory
+            await exec.exec('7z', [
+                'a', '-tzip',
+                packagePath,
+                outDir,
+                '-mx=5',
+                '-xr!obj'  // Exclude obj directory recursively
+            ], {ignoreReturnCode: true});
+            
+            console.log('✓ Package created successfully');
+            
+            return {
+                packagePath,
+                packageName
+            };
         }
-        
-        // Create zip of entire out directory
-        const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.${this.config.packageFormat}`;
-        const packagePath = path.join(this.paths.workDir, packageName);
-        
-        console.log(`Creating archive: ${packageName}`);
-        console.log('Compressing out directory with 7z (excluding obj directory)...');
-        
-        // Use 7z with moderate compression, exclude obj directory
-        await exec.exec('7z', [
-            'a', '-tzip',
-            packagePath,
-            outDir,
-            '-mx=5',
-            '-xr!obj'  // Exclude obj directory recursively
-        ], {ignoreReturnCode: true});
-        
-        console.log('✓ Package created successfully');
-        
-        return {
-            packagePath,
-            packageName
-        };
     }
 
     /**
      * Read current build stage from marker file
      */
     async getCurrentStage() {
+        this._ensurePaths();
         try {
             const markerContent = await fs.readFile(this.paths.markerFile, 'utf-8');
             const stage = markerContent.trim();
@@ -196,6 +281,7 @@ class WindowsBuilder {
      * Update build stage marker
      */
     async setStage(stage) {
+        this._ensurePaths();
         await fs.writeFile(this.paths.markerFile, stage);
         console.log(`✓ Updated stage marker to: ${stage}`);
     }
