@@ -64,13 +64,27 @@ jobs:
           distribution: Ubuntu-22.04
           set-as-default: 'true'
       
-      - name: Create work directory on D drive
+      - name: Create virtual ext4 filesystem on D drive
         shell: wsl-bash -u root {0}
         run: |
-          mkdir -p /mnt/d/brave-build
-          chmod 777 /mnt/d/brave-build
-          ls -ld /mnt/d/brave-build
-          echo "Work directory ready"
+          # Create 140GB virtual disk on D drive (sparse, grows as needed)
+          mkdir -p /mnt/d/wsl-vhd
+          truncate -s 140G /mnt/d/wsl-vhd/brave-build.ext4
+          
+          # Format as ext4
+          mkfs.ext4 -F /mnt/d/wsl-vhd/brave-build.ext4
+          
+          # Create mount point
+          mkdir -p /home/runner/brave-build
+          
+          # Mount the virtual disk
+          mount -o loop /mnt/d/wsl-vhd/brave-build.ext4 /home/runner/brave-build
+          
+          # Set permissions
+          chmod 777 /home/runner/brave-build
+          
+          echo "Native ext4 filesystem mounted with 130GB space"
+          df -h /home/runner/brave-build
       
       - name: Install build dependencies in WSL
         shell: wsl-bash -u root {0}
@@ -132,5 +146,20 @@ jobs:
       - name: Show disk usage
         if: always()
         shell: wsl-bash {0}
-        run: df -h /mnt/d
+        run: |
+          echo "=== Build directory usage ==="
+          df -h /home/runner/brave-build
+          echo ""
+          echo "=== Virtual disk file ==="
+          ls -lh /mnt/d/wsl-vhd/brave-build.ext4 || echo "Virtual disk not found"
+      
+      - name: Cleanup virtual filesystem
+        if: always()
+        shell: wsl-bash -u root {0}
+        run: |
+          # Unmount if mounted
+          umount /home/runner/brave-build 2>/dev/null || echo "Not mounted"
+          
+          # Keep the virtual disk file - artifacts might still need it
+          echo "Virtual disk preserved at D:\\wsl-vhd\\brave-build.ext4"
 
