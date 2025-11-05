@@ -44,7 +44,7 @@ const ARCHIVE = {
 const PLATFORMS = {
     linux: {
         runner: 'ubuntu-latest',
-        workDir: '/home/runner/brave-build',
+        workDir: process.env.WSL_DISTRO_NAME ? '/mnt/d/brave-build' : '/home/runner/brave-build',
         nodeModulesCache: '/home/runner/.npm',
         outputDirName: 'Component',
         executable: 'brave',

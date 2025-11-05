@@ -95,7 +95,7 @@ jobs:
         id: stage-container
         shell: wsl-bash {0}
         run: |
-          set +u  # Disable unbound variable check temporarily
+          set +u
           
           # Action inputs
           export INPUT_FINISHED="${{ inputs.finished }}"
@@ -105,8 +105,7 @@ jobs:
           export INPUT_BUILD_TYPE="${{ inputs.build_type }}"
           export INPUT_ENV_CONFIG="${{ secrets.BRAVE_ENV_CONFIG }}"
           
-          # GitHub context
-          export GITHUB_WORKSPACE="/mnt/d/brave-build"
+          # GitHub context - keep GITHUB_WORKSPACE as is (repo location)
           export GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output}"
           export ACTIONS_RUNTIME_TOKEN="${{ secrets.GITHUB_TOKEN }}"
           export ACTIONS_RUNTIME_URL="${{ env.ACTIONS_RUNTIME_URL }}"
@@ -122,7 +121,7 @@ jobs:
           export RUNNER_TEMP="/tmp"
           export HOME="${HOME:-/root}"
           
-          set -u  # Re-enable unbound variable check
+          set -u
           
           cd .github/actions/stage
           node src/main.js
