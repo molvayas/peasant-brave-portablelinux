@@ -6,10 +6,9 @@ const exec = require('@actions/exec');
 const core = require('@actions/core');
 const fs = require('fs').promises;
 const path = require('path');
-const {getPlatformConfig, getBuildPaths, STAGES} = require('../config/constants');
+const {getPlatformConfig, getBuildPaths, STAGES, getTimeouts} = require('../config/constants');
 const {cleanupDirectories} = require('../utils/disk');
 const {execWithTimeout, calculateBuildTimeout, waitAndSync} = require('../utils/exec');
-const {TIMEOUTS} = require('../config/constants');
 
 class LinuxBuilder {
     constructor(braveVersion, arch = 'x64') {
@@ -98,10 +97,11 @@ class LinuxBuilder {
             throw new Error('jobStartTime not set! Orchestrator must set this before calling runBuild()');
         }
         
+        const timeouts = getTimeouts(this.platform);
         const timing = calculateBuildTimeout(
             this.jobStartTime,
-            TIMEOUTS.MAX_BUILD_TIME,
-            TIMEOUTS.MIN_BUILD_TIME
+            timeouts.MAX_BUILD_TIME,
+            timeouts.MIN_BUILD_TIME
         );
         
         console.log(`Time elapsed in job: ${timing.elapsedHours} hours`);
@@ -136,8 +136,9 @@ class LinuxBuilder {
             console.log('⏱️ npm run build timed out - will resume in next stage');
             
             // Wait for processes to finish cleanup
-            await waitAndSync(TIMEOUTS.CLEANUP_WAIT);
-            await waitAndSync(TIMEOUTS.SYNC_WAIT);
+            const timeouts = getTimeouts(this.platform);
+            await waitAndSync(timeouts.CLEANUP_WAIT);
+            await waitAndSync(timeouts.SYNC_WAIT);
             
             return {success: false, timedOut: true};
         } else {
@@ -163,10 +164,11 @@ class LinuxBuilder {
             throw new Error('jobStartTime not set! Orchestrator must set this before calling runBuildDist()');
         }
         
+        const timeouts = getTimeouts(this.platform);
         const timing = calculateBuildTimeout(
             this.jobStartTime,
-            TIMEOUTS.MAX_BUILD_TIME,
-            TIMEOUTS.MIN_BUILD_TIME
+            timeouts.MAX_BUILD_TIME,
+            timeouts.MIN_BUILD_TIME
         );
         
         console.log(`Time elapsed in job: ${timing.elapsedHours} hours`);
@@ -174,8 +176,8 @@ class LinuxBuilder {
         console.log(`Final timeout: ${timing.timeoutMinutes} minutes (${timing.remainingHours} hours)`);
         
         // Check if we have enough time for create_dist (minimum 30 minutes)
-        const remainingMs = TIMEOUTS.MAX_BUILD_TIME - (Date.now() - this.jobStartTime);
-        if (remainingMs < TIMEOUTS.MIN_DIST_BUILD_TIME) {
+        const remainingMs = timeouts.MAX_BUILD_TIME - (Date.now() - this.jobStartTime);
+        if (remainingMs < timeouts.MIN_DIST_BUILD_TIME) {
             console.log(`⏱️ Less than 30 minutes remaining (${(remainingMs / 60000).toFixed(1)} mins)`);
             console.log('Checkpointing for next stage to ensure create_dist completes successfully');
             return {success: false, timedOut: true};
@@ -200,8 +202,9 @@ class LinuxBuilder {
             console.log('⏱️ create_dist timed out - will resume in next stage');
             
             // Wait for processes to finish cleanup
-            await waitAndSync(TIMEOUTS.CLEANUP_WAIT);
-            await waitAndSync(TIMEOUTS.SYNC_WAIT);
+            const timeouts = getTimeouts(this.platform);
+            await waitAndSync(timeouts.CLEANUP_WAIT);
+            await waitAndSync(timeouts.SYNC_WAIT);
             
             return {success: false, timedOut: true};
         } else {

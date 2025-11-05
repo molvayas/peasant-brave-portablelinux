@@ -6,11 +6,30 @@ const path = require('path');
 
 // Build timeouts (in milliseconds)
 const TIMEOUTS = {
-    MAX_BUILD_TIME: 240 * 60 * 1000, // 4.33 hours
-    MIN_BUILD_TIME: 5 * 60 * 1000,   // 5 minutes
-    MIN_DIST_BUILD_TIME: 30 * 60 * 1000,  // 30 minutes for create_dist phase
-    CLEANUP_WAIT: 10 * 1000,          // 10 seconds
-    SYNC_WAIT: 10 * 1000              // 10 seconds
+    // Global timeouts (used as fallback)
+    MAX_BUILD_TIME: 240 * 60 * 1000,     // 4 hours (GitHub Actions limit is 6 hours)
+    MIN_BUILD_TIME: 5 * 60 * 1000,       // 5 minutes minimum
+    MIN_DIST_BUILD_TIME: 30 * 60 * 1000, // 30 minutes for create_dist phase
+    CLEANUP_WAIT: 10 * 1000,              // 10 seconds
+    SYNC_WAIT: 10 * 1000,                 // 10 seconds
+    
+    // Platform-specific timeout overrides
+    linux: {
+        MAX_BUILD_TIME: 240 * 60 * 1000,  // 4 hours
+        MIN_BUILD_TIME: 5 * 60 * 1000,    // 5 minutes
+        MIN_DIST_BUILD_TIME: 30 * 60 * 1000, // 30 minutes
+    },
+    macos: {
+        MAX_BUILD_TIME: 240 * 60 * 1000,  // 4 hours
+        MIN_BUILD_TIME: 5 * 60 * 1000,    // 5 minutes
+        MIN_DIST_BUILD_TIME: 30 * 60 * 1000, // 30 minutes
+    },
+    windows: {
+        MAX_BUILD_TIME: 240 * 60 * 1000,  // 4 hours
+        MIN_BUILD_TIME: 10 * 60 * 1000,   // 10 minutes (Windows needs more time)
+        FALLBACK_TIMEOUT: 15 * 60 * 1000, // 15 minutes fallback
+        MIN_DIST_BUILD_TIME: 30 * 60 * 1000, // 30 minutes
+    }
 };
 
 // Archive configuration
@@ -30,7 +49,7 @@ const PLATFORMS = {
         outputDirName: 'Component',
         executable: 'brave',
         packageFormat: 'tar.xz',
-        volumeSize: '7G',
+        volumeSize: '2G',
         dependencies: [
             'build-essential', 'git', 'python3', 'python3-pip',
             'python-setuptools', 'python3-distutils', 'python-is-python3',
@@ -153,6 +172,37 @@ function getBuildPaths(platform, buildType = 'Component') {
     };
 }
 
+/**
+ * Get platform-specific timeout configuration
+ * @param {string} platform - Platform name (linux, macos, windows)
+ * @returns {object} Timeout configuration for the platform
+ */
+function getTimeouts(platform) {
+    const platformLower = platform.toLowerCase();
+    const platformTimeouts = TIMEOUTS[platformLower];
+    
+    if (!platformTimeouts) {
+        // Return global timeouts if platform-specific not found
+        return {
+            MAX_BUILD_TIME: TIMEOUTS.MAX_BUILD_TIME,
+            MIN_BUILD_TIME: TIMEOUTS.MIN_BUILD_TIME,
+            MIN_DIST_BUILD_TIME: TIMEOUTS.MIN_DIST_BUILD_TIME,
+            CLEANUP_WAIT: TIMEOUTS.CLEANUP_WAIT,
+            SYNC_WAIT: TIMEOUTS.SYNC_WAIT
+        };
+    }
+    
+    // Merge platform-specific with global defaults
+    return {
+        MAX_BUILD_TIME: platformTimeouts.MAX_BUILD_TIME || TIMEOUTS.MAX_BUILD_TIME,
+        MIN_BUILD_TIME: platformTimeouts.MIN_BUILD_TIME || TIMEOUTS.MIN_BUILD_TIME,
+        MIN_DIST_BUILD_TIME: platformTimeouts.MIN_DIST_BUILD_TIME || TIMEOUTS.MIN_DIST_BUILD_TIME,
+        FALLBACK_TIMEOUT: platformTimeouts.FALLBACK_TIMEOUT, // Windows-specific
+        CLEANUP_WAIT: TIMEOUTS.CLEANUP_WAIT,
+        SYNC_WAIT: TIMEOUTS.SYNC_WAIT
+    };
+}
+
 module.exports = {
     TIMEOUTS,
     ARCHIVE,
@@ -162,6 +212,7 @@ module.exports = {
     ARTIFACTS,
     getPlatformConfig,
     getArchConfig,
-    getBuildPaths
+    getBuildPaths,
+    getTimeouts
 };
 

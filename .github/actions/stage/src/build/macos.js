@@ -5,10 +5,9 @@
 const exec = require('@actions/exec');
 const fs = require('fs').promises;
 const path = require('path');
-const {getPlatformConfig, getBuildPaths, STAGES} = require('../config/constants');
+const {getPlatformConfig, getBuildPaths, STAGES, getTimeouts} = require('../config/constants');
 const {cleanupDirectories} = require('../utils/disk');
 const {execWithTimeout, calculateBuildTimeout, waitAndSync} = require('../utils/exec');
-const {TIMEOUTS} = require('../config/constants');
 
 class MacOSBuilder {
     constructor(braveVersion, arch = 'x64') {
@@ -99,10 +98,11 @@ class MacOSBuilder {
             throw new Error('jobStartTime not set! Orchestrator must set this before calling runBuild()');
         }
         
+        const timeouts = getTimeouts(this.platform);
         const timing = calculateBuildTimeout(
             this.jobStartTime,
-            TIMEOUTS.MAX_BUILD_TIME,
-            TIMEOUTS.MIN_BUILD_TIME
+            timeouts.MAX_BUILD_TIME,
+            timeouts.MIN_BUILD_TIME
         );
         
         console.log(`Time elapsed in job: ${timing.elapsedHours} hours`);
@@ -140,7 +140,8 @@ class MacOSBuilder {
             
             // Wait for processes to finish cleanup (longer on macOS)
             await waitAndSync(30000); // 30 seconds
-            await waitAndSync(TIMEOUTS.SYNC_WAIT);
+            const timeouts = getTimeouts(this.platform);
+            await waitAndSync(timeouts.SYNC_WAIT);
             
             return {success: false, timedOut: true};
         } else {
@@ -166,10 +167,11 @@ class MacOSBuilder {
             throw new Error('jobStartTime not set! Orchestrator must set this before calling runBuildDist()');
         }
         
+        const timeouts = getTimeouts(this.platform);
         const timing = calculateBuildTimeout(
             this.jobStartTime,
-            TIMEOUTS.MAX_BUILD_TIME,
-            TIMEOUTS.MIN_BUILD_TIME
+            timeouts.MAX_BUILD_TIME,
+            timeouts.MIN_BUILD_TIME
         );
         
         console.log(`Time elapsed in job: ${timing.elapsedHours} hours`);
@@ -177,8 +179,9 @@ class MacOSBuilder {
         console.log(`Final timeout: ${timing.timeoutMinutes} minutes (${timing.remainingHours} hours)`);
         
         // Check if we have enough time for create_dist (minimum 30 minutes)
-        const remainingMs = TIMEOUTS.MAX_BUILD_TIME - (Date.now() - this.jobStartTime);
-        if (remainingMs < TIMEOUTS.MIN_DIST_BUILD_TIME) {
+        const timeouts = getTimeouts(this.platform);
+        const remainingMs = timeouts.MAX_BUILD_TIME - (Date.now() - this.jobStartTime);
+        if (remainingMs < timeouts.MIN_DIST_BUILD_TIME) {
             console.log(`⏱️ Less than 30 minutes remaining (${(remainingMs / 60000).toFixed(1)} mins)`);
             console.log('Checkpointing for next stage to ensure create_dist completes successfully');
             return {success: false, timedOut: true};
@@ -206,7 +209,8 @@ class MacOSBuilder {
             
             // Wait for processes to finish cleanup (longer on macOS)
             await waitAndSync(30000); // 30 seconds
-            await waitAndSync(TIMEOUTS.SYNC_WAIT);
+            const timeouts = getTimeouts(this.platform);
+            await waitAndSync(timeouts.SYNC_WAIT);
             
             return {success: false, timedOut: true};
         } else {

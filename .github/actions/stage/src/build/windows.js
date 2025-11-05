@@ -7,8 +7,7 @@ const core = require('@actions/core');
 const fs = require('fs').promises;
 const path = require('path');
 const child_process = require('child_process');
-const {getPlatformConfig, getBuildPaths, STAGES} = require('../config/constants');
-const {TIMEOUTS} = require('../config/constants');
+const {getPlatformConfig, getBuildPaths, STAGES, getTimeouts} = require('../config/constants');
 
 class WindowsBuilder {
     constructor(braveVersion, arch = 'x64') {
@@ -99,25 +98,22 @@ class WindowsBuilder {
             throw new Error('jobStartTime not set! Orchestrator must set this before calling runBuild()');
         }
         
+        const timeouts = getTimeouts(this.platform);
         const elapsedTime = Date.now() - this.jobStartTime;
-        let remainingTime = TIMEOUTS.MAX_BUILD_TIME - elapsedTime;
-        remainingTime = 11*60*1000
+        let remainingTime = timeouts.MAX_BUILD_TIME - elapsedTime;
         
         console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
         console.log(`Remaining time calculated: ${(remainingTime / 3600000).toFixed(2)} hours`);
         
         // Apply timeout rules:
-        // 1. If remaining time < 0, set to 15 minutes
-        // 2. Minimum timeout is 20 minutes
-        const MIN_TIMEOUT = 10 * 60 * 1000; // 20 minutes
-        const FALLBACK_TIMEOUT = 15 * 60 * 1000; // 15 minutes
-        
+        // 1. If remaining time < 0, use fallback timeout
+        // 2. Use minimum timeout if calculated time is too low
         if (remainingTime <= 0) {
-            console.log('⚠️ Calculated time is negative, setting to 15 minutes');
-            remainingTime = FALLBACK_TIMEOUT;
-        } else if (remainingTime < MIN_TIMEOUT) {
-            console.log('⚠️ Calculated time is less than minimum, setting to 20 minutes');
-            remainingTime = MIN_TIMEOUT;
+            console.log('⚠️ Calculated time is negative, using fallback timeout');
+            remainingTime = timeouts.FALLBACK_TIMEOUT;
+        } else if (remainingTime < timeouts.MIN_BUILD_TIME) {
+            console.log('⚠️ Calculated time is less than minimum, using minimum timeout');
+            remainingTime = timeouts.MIN_BUILD_TIME;
         }
         
         // Build command based on buildType
@@ -184,29 +180,27 @@ class WindowsBuilder {
             throw new Error('jobStartTime not set! Orchestrator must set this before calling runBuildDist()');
         }
         
+        const timeouts = getTimeouts(this.platform);
         const elapsedTime = Date.now() - this.jobStartTime;
-        let remainingTime = TIMEOUTS.MAX_BUILD_TIME - elapsedTime;
+        let remainingTime = timeouts.MAX_BUILD_TIME - elapsedTime;
         
         console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
         console.log(`Remaining time calculated: ${(remainingTime / 3600000).toFixed(2)} hours`);
         
         // Check if we have enough time for create_dist (minimum 30 minutes)
-        if (remainingTime < TIMEOUTS.MIN_DIST_BUILD_TIME) {
+        if (remainingTime < timeouts.MIN_DIST_BUILD_TIME) {
             console.log(`⏱️ Less than 30 minutes remaining (${(remainingTime / 60000).toFixed(1)} mins)`);
             console.log('Checkpointing for next stage to ensure create_dist completes successfully');
             return {success: false, timedOut: true};
         }
         
         // Apply timeout rules
-        const MIN_TIMEOUT = 10 * 60 * 1000; // 20 minutes
-        const FALLBACK_TIMEOUT = 15 * 60 * 1000; // 15 minutes
-        
         if (remainingTime <= 0) {
-            console.log('⚠️ Calculated time is negative, setting to 15 minutes');
-            remainingTime = FALLBACK_TIMEOUT;
-        } else if (remainingTime < MIN_TIMEOUT) {
-            console.log('⚠️ Calculated time is less than minimum, setting to 20 minutes');
-            remainingTime = MIN_TIMEOUT;
+            console.log('⚠️ Calculated time is negative, using fallback timeout');
+            remainingTime = timeouts.FALLBACK_TIMEOUT;
+        } else if (remainingTime < timeouts.MIN_BUILD_TIME) {
+            console.log('⚠️ Calculated time is less than minimum, using minimum timeout');
+            remainingTime = timeouts.MIN_BUILD_TIME;
         }
         
         // Run create_dist (should be fast since browser is already built)
