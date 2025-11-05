@@ -97,6 +97,9 @@ jobs:
         run: |
           set +u
           
+          # Convert Windows path to WSL path
+          export GITHUB_WORKSPACE=$(wslpath '${{ github.workspace }}')
+          
           # Action inputs
           export INPUT_FINISHED="${{ inputs.finished }}"
           export INPUT_FROM_ARTIFACT="${{ inputs.from_artifact }}"
@@ -106,7 +109,6 @@ jobs:
           export INPUT_ENV_CONFIG="${{ secrets.BRAVE_ENV_CONFIG }}"
           
           # GitHub context
-          export GITHUB_WORKSPACE="${{ github.workspace }}"
           export GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output}"
           export ACTIONS_RUNTIME_TOKEN="${{ secrets.GITHUB_TOKEN }}"
           export ACTIONS_RUNTIME_URL="${{ env.ACTIONS_RUNTIME_URL }}"
