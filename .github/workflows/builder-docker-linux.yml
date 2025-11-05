@@ -88,6 +88,21 @@ jobs:
           echo "Native ext4 filesystem ready:"
           df -h /home/runner/brave-build
       
+      - name: Copy workspace to native filesystem
+        shell: wsl-bash {0}
+        run: |
+          set -e
+          
+          WINDOWS_WORKSPACE=$(wslpath '${{ github.workspace }}')
+          echo "Copying workspace from $WINDOWS_WORKSPACE to /home/runner/brave-build/workspace"
+          
+          # Copy entire workspace to native filesystem
+          mkdir -p /home/runner/brave-build/workspace
+          cp -r "$WINDOWS_WORKSPACE/." /home/runner/brave-build/workspace/
+          
+          echo "Workspace copied successfully"
+          ls -la /home/runner/brave-build/workspace
+      
       - name: Install build dependencies in WSL
         shell: wsl-bash -u root {0}
         run: |
@@ -115,14 +130,9 @@ jobs:
         run: |
           set -e
           
-          # Convert and navigate to workspace
-          WORKSPACE=$(wslpath '${{ github.workspace }}')
-          echo "Workspace: $WORKSPACE"
-          cd "$WORKSPACE" || { echo "ERROR: Cannot cd to workspace"; exit 1; }
-          
-          # Navigate to action directory
-          echo "Installing npm dependencies..."
-          cd .github/actions/stage || { echo "ERROR: Cannot find .github/actions/stage"; exit 1; }
+          # Work from native filesystem
+          echo "Installing npm dependencies in native filesystem..."
+          cd /home/runner/brave-build/workspace/.github/actions/stage || { echo "ERROR: Cannot find action directory"; exit 1; }
           
           npm install
           echo "Dependencies installed successfully"
@@ -133,9 +143,9 @@ jobs:
         run: |
           set -e
           
-          # Convert Windows path to WSL path
-          export GITHUB_WORKSPACE=$(wslpath '${{ github.workspace }}')
-          echo "Workspace: $GITHUB_WORKSPACE"
+          # Use workspace in native filesystem
+          export GITHUB_WORKSPACE="/home/runner/brave-build/workspace"
+          echo "Using native workspace: $GITHUB_WORKSPACE"
           
           # Action inputs
           export INPUT_FINISHED="${{ inputs.finished }}"
