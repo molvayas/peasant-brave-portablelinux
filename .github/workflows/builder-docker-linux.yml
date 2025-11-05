@@ -48,7 +48,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Show disk space (Windows D: drive)
+      - name: Show disk space on Windows D drive
         shell: powershell
         run: |
           Write-Host "=== Windows Disk Space ===" -ForegroundColor Cyan
@@ -58,7 +58,7 @@ jobs:
           Write-Host ""
           Write-Host "✓ No cleanup needed - Windows D: drive has plenty of space!" -ForegroundColor Green
       
-      - name: Create work directory on D: drive
+      - name: Create work directory on D drive
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force -Path "D:\brave-build" | Out-Null
@@ -70,7 +70,7 @@ jobs:
           Write-Host "Pulling Ubuntu 22.04 image..." -ForegroundColor Cyan
           docker pull ubuntu:22.04
       
-      - name: Start Docker container with D: drive mount
+      - name: Start Docker container with D drive mount
         shell: powershell
         run: |
           Write-Host "Starting Ubuntu container with D:\brave-build mounted..." -ForegroundColor Cyan
