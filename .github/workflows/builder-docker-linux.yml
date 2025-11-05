@@ -141,37 +141,60 @@ jobs:
           npm install
           echo "Dependencies installed successfully"
       
+      - name: Capture GitHub Actions environment
+        shell: powershell
+        run: |
+          # Capture environment variables to file
+          @"
+          export ACTIONS_RUNTIME_TOKEN='${{ github.token }}'
+          export ACTIONS_RUNTIME_URL='$env:ACTIONS_RUNTIME_URL'
+          export ACTIONS_CACHE_URL='$env:ACTIONS_CACHE_URL'
+          export ACTIONS_RESULTS_URL='$env:ACTIONS_RESULTS_URL'
+          export GITHUB_RUN_ID='${{ github.run_id }}'
+          export GITHUB_RUN_NUMBER='${{ github.run_number }}'
+          export GITHUB_RUN_ATTEMPT='${{ github.run_attempt }}'
+          export GITHUB_REPOSITORY='${{ github.repository }}'
+          export GITHUB_SHA='${{ github.sha }}'
+          export GITHUB_REF='${{ github.ref }}'
+          export GITHUB_ACTOR='${{ github.actor }}'
+          "@ | Out-File -FilePath "D:\wsl-env.sh" -Encoding utf8 -NoNewline
+          Write-Host "Environment captured to D:\wsl-env.sh"
+      
       - name: Run build stage ${{ inputs.stage }} in WSL
         id: stage-container
         shell: wsl-bash {0}
-        env:
-          INPUT_FINISHED: ${{ inputs.finished }}
-          INPUT_FROM_ARTIFACT: ${{ inputs.from_artifact }}
-          INPUT_PLATFORM: ${{ inputs.platform }}
-          INPUT_ARCH: ${{ inputs.arch }}
-          INPUT_BUILD_TYPE: ${{ inputs.build_type }}
-          INPUT_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
         run: |
           set -e
+          
+          # Load GitHub Actions environment
+          echo "Loading GitHub Actions environment..."
+          source /mnt/d/wsl-env.sh
           
           # Set workspace path
           export GITHUB_WORKSPACE="/home/runner/brave-build/workspace"
           
-          # GitHub context variables that need to be preserved
+          # Action inputs (must have INPUT_ prefix for @actions/core)
+          export INPUT_FINISHED="${{ inputs.finished }}"
+          export INPUT_FROM_ARTIFACT="${{ inputs.from_artifact }}"
+          export INPUT_PLATFORM="${{ inputs.platform }}"
+          export INPUT_ARCH="${{ inputs.arch }}"
+          export INPUT_BUILD_TYPE="${{ inputs.build_type }}"
+          export INPUT_ENV_CONFIG="${{ secrets.BRAVE_ENV_CONFIG }}"
+          
+          # Additional GitHub context variables
           export GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output}"
           export RUNNER_TEMP="${RUNNER_TEMP:-/tmp}"
           export HOME="/home/runner"
           export GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
           
-          # These environment variables are automatically passed through by setup-wsl:
-          # - ACTIONS_RUNTIME_TOKEN
-          # - ACTIONS_RUNTIME_URL
-          # - ACTIONS_CACHE_URL
-          # - ACTIONS_RESULTS_URL
-          # - GITHUB_RUN_ID, GITHUB_RUN_NUMBER, GITHUB_RUN_ATTEMPT
-          # - GITHUB_REPOSITORY, GITHUB_SHA, GITHUB_REF, GITHUB_ACTOR
+          # Verify critical variables are set
+          if [ -z "$ACTIONS_RUNTIME_URL" ]; then
+            echo "ERROR: ACTIONS_RUNTIME_URL not set after sourcing env"
+            exit 1
+          fi
           
           echo "Using native workspace: $GITHUB_WORKSPACE"
+          echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:0:50}..."
           echo "Starting build stage ${{ inputs.stage }}..."
           
           cd "$GITHUB_WORKSPACE/.github/actions/stage" || exit 1
