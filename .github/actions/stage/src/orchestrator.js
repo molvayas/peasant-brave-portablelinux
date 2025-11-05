@@ -195,7 +195,7 @@ class BuildOrchestrator {
                 await exec.exec('sudo', [buildDepsScript, '--no-prompt'], {ignoreReturnCode: true});
             }
             
-            // Setup Xcode environment on macOS (critical for SDK consistency)
+            // Setup Xcode environment on macOS (for SDK consistency)
             if (this.platform === 'macos') {
                 console.log('\n=== Re-initializing Xcode Environment (Post-Restore) ===');
                 console.log('Ensuring consistent Xcode/SDK selection after checkpoint restore...');
@@ -203,90 +203,7 @@ class BuildOrchestrator {
                 if (typeof this.builder._setupXcode === 'function') {
                     await this.builder._setupXcode();
                 }
-            }
-            
-            // Clean PCM and Ninja metadata files on macOS to prevent SDK path conflicts
-            if (this.platform === 'macos') {
-                console.log('\n=== Cleaning Build Metadata (macOS) ===');
-                console.log('Removing precompiled modules and ninja metadata to prevent SDK path conflicts...');
-                console.log('These will be regenerated with the current Xcode/SDK paths (~2-3 minutes)');
-                
-                const outDir = path.join(this.builder.paths.srcDir, 'out');
-                
-                // Check if out directory exists
-                try {
-                    await fs.access(outDir);
-                    
-                    // Find all Release* and Component* build directories
-                    const buildDirs = [];
-                    const entries = await fs.readdir(outDir);
-                    for (const entry of entries) {
-                        if (entry.startsWith('Release') || entry.startsWith('Component')) {
-                            buildDirs.push(path.join(outDir, entry));
-                        }
-                    }
-                    
-                    console.log(`Found ${buildDirs.length} build directory(ies) to clean`);
-                    
-                    for (const buildDir of buildDirs) {
-                        console.log(`\nCleaning ${path.basename(buildDir)}...`);
-                        
-                        // 1. Count and delete all .pcm files (precompiled C++ modules)
-                        console.log('  Searching for PCM files...');
-                        let pcmOutput = '';
-                        await exec.exec('find', [
-                            buildDir,
-                            '-name', '*.pcm',
-                            '-type', 'f',
-                            '-print'
-                        ], {
-                            ignoreReturnCode: true,
-                            listeners: {
-                                stdout: (data) => {
-                                    pcmOutput += data.toString();
-                                }
-                            }
-                        });
-                        
-                        const pcmFiles = pcmOutput.trim().split('\n').filter(f => f);
-                        if (pcmFiles.length > 0 && pcmFiles[0]) {
-                            console.log(`  Found ${pcmFiles.length} PCM file(s), deleting...`);
-                            await exec.exec('find', [
-                                buildDir,
-                                '-name', '*.pcm',
-                                '-type', 'f',
-                                '-delete'
-                            ], {ignoreReturnCode: true});
-                            console.log('  ✓ PCM files deleted');
-                        } else {
-                            console.log('  No PCM files found (may not be built yet)');
-                        }
-                        
-                        // 2. Delete ninja metadata files that track dependencies
-                        const ninjaFiles = [
-                            {path: path.join(buildDir, '.ninja_log'), name: '.ninja_log'},
-                            {path: path.join(buildDir, '.ninja_deps'), name: '.ninja_deps'},
-                            {path: path.join(buildDir, 'build.ninja'), name: 'build.ninja'},
-                            {path: path.join(buildDir, 'build.ninja.d'), name: 'build.ninja.d'}
-                        ];
-                        
-                        for (const file of ninjaFiles) {
-                            try {
-                                const stat = await fs.stat(file.path);
-                                await fs.unlink(file.path);
-                                console.log(`  ✓ Deleted ${file.name} (${(stat.size / 1024).toFixed(1)} KB)`);
-                            } catch (e) {
-                                console.log(`  - ${file.name} not found (may not be built yet)`);
-                            }
-                        }
-                    }
-                    
-                    console.log('\n✓ Build metadata cleaned successfully');
-                    console.log('  GN will regenerate build files with correct SDK paths on next build');
-                    
-                } catch (e) {
-                    console.log('No out directory found yet, skipping metadata cleanup');
-                }
+                console.log('✓ Xcode environment re-initialized');
             }
 
         } catch (e) {
