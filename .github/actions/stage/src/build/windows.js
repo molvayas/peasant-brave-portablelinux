@@ -119,10 +119,10 @@ class WindowsBuilder {
         // Build command based on buildType
         let buildArgs;
         if (this.buildType === 'Release') {
-            // Release: build browser only (no create_dist yet)
-            buildArgs = ['run', 'build', 'Release'];
-            console.log('Running npm run build Release (browser only, no create_dist)...');
-            console.log('Note: create_dist will run in next stage for better checkpoint safety');
+            // Release: build browser and create distribution package in one go
+            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing'];
+            console.log('Running npm run build Release with create_dist (unified)...');
+            console.log('Note: Unified for consistency with macOS after Xcode initialization fix');
         } else {
             // Component: just build
             buildArgs = ['run', 'build'];
@@ -164,78 +164,22 @@ class WindowsBuilder {
     }
 
     /**
-     * Run create_dist stage (Release builds only) with Windows-specific timeout handling
+     * Run create_dist stage (Release builds only)
+     * NOTE: As of the unified build approach, create_dist is now unified with runBuild()
+     * This method is kept for compatibility but just returns success.
      */
     async runBuildDist() {
         this._ensurePaths();
-        console.log('\n=== Stage: create_dist (Release only) ===');
+        console.log('\n=== Stage: create_dist (unified with build, no-op) ===');
         
         if (this.buildType !== 'Release') {
             console.log('Skipping create_dist - not a Release build');
             return {success: true, timedOut: false};
         }
         
-        // Calculate timeout based on time elapsed since job start
-        if (!this.jobStartTime) {
-            throw new Error('jobStartTime not set! Orchestrator must set this before calling runBuildDist()');
-        }
-        
-        const timeouts = getTimeouts(this.platform);
-        const elapsedTime = Date.now() - this.jobStartTime;
-        let remainingTime = timeouts.MAX_BUILD_TIME - elapsedTime;
-        
-        console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
-        console.log(`Remaining time calculated: ${(remainingTime / 3600000).toFixed(2)} hours`);
-        
-        // Check if we have enough time for create_dist (minimum 30 minutes)
-        if (remainingTime < timeouts.MIN_DIST_BUILD_TIME) {
-            console.log(`⏱️ Less than 30 minutes remaining (${(remainingTime / 60000).toFixed(1)} mins)`);
-            console.log('Checkpointing for next stage to ensure create_dist completes successfully');
-            return {success: false, timedOut: true};
-        }
-        
-        // Apply timeout rules
-        if (remainingTime <= 0) {
-            console.log('⚠️ Calculated time is negative, using fallback timeout');
-            remainingTime = timeouts.FALLBACK_TIMEOUT;
-        } else if (remainingTime < timeouts.MIN_BUILD_TIME) {
-            console.log('⚠️ Calculated time is less than minimum, using minimum timeout');
-            remainingTime = timeouts.MIN_BUILD_TIME;
-        }
-        
-        // Run create_dist (should be fast since browser is already built)
-        const buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing'];
-        console.log('Running create_dist to generate distribution packages (unsigned)...');
-        console.log('This should be fast since browser is already built (~5-15 minutes)');
-        console.log(`Final timeout: ${(remainingTime / 60000).toFixed(0)} minutes`);
-        console.log(`Command: npm ${buildArgs.join(' ')}`);
-        
-        const buildCode = await this._execWithTimeout('npm', buildArgs, {
-            cwd: this.paths.braveDir,
-            timeout: remainingTime
-        });
-        
-        if (buildCode === 0) {
-            console.log('✓ create_dist completed successfully');
-            return {success: true, timedOut: false};
-        } else if (buildCode === 999) {
-            // Windows timeout code
-            console.log('⏱️ create_dist timed out - will resume in next stage');
-            
-            // Wait for Windows to release file handles
-            console.log('Waiting 60 seconds for all file handles to close and locks to release...');
-            await new Promise(r => setTimeout(r, 60000));
-            
-            console.log('Waiting additional 15 seconds for filesystem to stabilize...');
-            await new Promise(r => setTimeout(r, 15000));
-            
-            console.log('✓ Cleanup complete, build state should be preserved for resumption');
-            
-            return {success: false, timedOut: true};
-        } else {
-            console.log(`✗ create_dist failed with code ${buildCode}`);
-            return {success: false, timedOut: false};
-        }
+        console.log('create_dist already completed in unified build step');
+        console.log('✓ Distribution package already created');
+        return {success: true, timedOut: false};
     }
 
     /**
