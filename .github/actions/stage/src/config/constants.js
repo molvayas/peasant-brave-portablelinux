@@ -15,7 +15,7 @@ const TIMEOUTS = {
     
     // Platform-specific timeout overrides
     linux: {
-        MAX_BUILD_TIME: 240 * 60 * 1000,  // 4 hours
+        MAX_BUILD_TIME: 180 * 60 * 1000,  // 4 hours
         MIN_BUILD_TIME: 5 * 60 * 1000,    // 5 minutes
         MIN_DIST_BUILD_TIME: 30 * 60 * 1000, // 30 minutes
     },
