@@ -80,10 +80,13 @@ jobs:
           # Mount the virtual disk
           mount -o loop /mnt/d/wsl-vhd/brave-build.ext4 /home/runner/brave-build
           
-          # Set permissions
-          chmod 777 /home/runner/brave-build
+          # Create runner user if it doesn't exist
+          id -u runner &>/dev/null || useradd -m -s /bin/bash runner
           
-          echo "Native ext4 filesystem mounted with 130GB space"
+          # Set proper ownership (not just permissions)
+          chown -R runner:runner /home/runner/brave-build
+          
+          echo "Native ext4 filesystem mounted with 140GB space"
           df -h /home/runner/brave-build
       
       - name: Install build dependencies in WSL
@@ -100,19 +103,34 @@ jobs:
           node --version && npm --version
       
       - name: Install action dependencies
-        shell: wsl-bash {0}
+        shell: wsl-bash -u runner {0}
         run: |
+          # Convert and navigate to workspace
+          WORKSPACE=$(wslpath '${{ github.workspace }}')
+          echo "Workspace path: $WORKSPACE"
+          cd "$WORKSPACE"
+          
+          # Verify access
+          ls -la .github/actions/stage || { echo "ERROR: Cannot access workspace"; exit 1; }
+          
           cd .github/actions/stage
           npm install --silent
       
       - name: Run build stage ${{ inputs.stage }} in WSL
         id: stage-container
-        shell: wsl-bash {0}
+        shell: wsl-bash -u runner {0}
         run: |
           set +u
           
           # Convert Windows path to WSL path
           export GITHUB_WORKSPACE=$(wslpath '${{ github.workspace }}')
+          echo "Using workspace: $GITHUB_WORKSPACE"
+          
+          # Verify workspace access
+          if [ ! -d "$GITHUB_WORKSPACE" ]; then
+            echo "ERROR: Workspace directory not accessible"
+            exit 1
+          fi
           
           # Action inputs
           export INPUT_FINISHED="${{ inputs.finished }}"
@@ -136,7 +154,10 @@ jobs:
           export GITHUB_REF="${{ github.ref }}"
           export GITHUB_ACTOR="${{ github.actor }}"
           export RUNNER_TEMP="/tmp"
-          export HOME="${HOME:-/root}"
+          export HOME="/home/runner"
+          
+          # Suppress git version warning
+          export GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
           
           set -u
           
@@ -145,7 +166,7 @@ jobs:
       
       - name: Show disk usage
         if: always()
-        shell: wsl-bash {0}
+        shell: wsl-bash -u runner {0}
         run: |
           echo "=== Build directory usage ==="
           df -h /home/runner/brave-build
