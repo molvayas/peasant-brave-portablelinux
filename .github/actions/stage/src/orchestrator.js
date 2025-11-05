@@ -114,6 +114,11 @@ class BuildOrchestrator {
     async _setupEnvironment() {
         console.log('\n=== Setting Up Environment ===');
         
+        // Ensure paths are initialized before accessing them
+        if (typeof this.builder._ensurePaths === 'function') {
+            this.builder._ensurePaths();
+        }
+        
         // Ensure work directory exists
         try {
             await io.mkdirP(this.builder.paths.srcDir);
