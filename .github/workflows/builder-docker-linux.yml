@@ -1,0 +1,218 @@
+name: Build Stage - Docker Linux (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        description: 'Target platform (must be linux for Docker)'
+        required: true
+        type: string
+      arch:
+        description: 'Target architecture (x64, arm64)'
+        required: true
+        type: string
+      stage:
+        description: 'Build stage number (1-6)'
+        required: true
+        type: number
+      from_artifact:
+        description: 'Resume from previous stage artifact'
+        required: true
+        type: boolean
+      finished:
+        description: 'Build already finished in previous stage'
+        required: true
+        type: string
+      build_type:
+        description: 'Build type: Component or Release'
+        required: false
+        type: string
+        default: 'Component'
+    secrets:
+      BRAVE_ENV_CONFIG:
+        description: 'Contents of .env file for Brave build'
+        required: false
+    outputs:
+      finished:
+        description: 'Whether the build has finished'
+        value: ${{ jobs.build.outputs.finished }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    outputs:
+      finished: ${{ steps.stage-container.outputs.finished }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Show disk space (Windows D: drive)
+        shell: powershell
+        run: |
+          Write-Host "=== Windows Disk Space ===" -ForegroundColor Cyan
+          Get-PSDrive D | Format-Table Name, Used, Free, @{Name='FreeGB';Expression={[math]::Round($_.Free/1GB,2)}}
+          Write-Host ""
+          Write-Host "✓ No cleanup needed - Windows D: drive has plenty of space!" -ForegroundColor Green
+      
+      - name: Create work directory on D: drive
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "D:\brave-build" | Out-Null
+          Write-Host "✓ Created D:\brave-build" -ForegroundColor Green
+      
+      - name: Pull Ubuntu Docker image
+        shell: powershell
+        run: |
+          Write-Host "Pulling Ubuntu 22.04 image..." -ForegroundColor Cyan
+          docker pull ubuntu:22.04
+      
+      - name: Start Docker container with D: drive mount
+        shell: powershell
+        run: |
+          Write-Host "Starting Ubuntu container with D:\brave-build mounted..." -ForegroundColor Cyan
+          docker run -d `
+            --name brave-builder `
+            --mount type=bind,source=D:\brave-build,target=/workspace/brave-build `
+            -w /workspace/brave-build `
+            --privileged `
+            ubuntu:22.04 `
+            tail -f /dev/null
+          
+          Write-Host "✓ Container started" -ForegroundColor Green
+          docker ps
+      
+      - name: Install dependencies in container
+        shell: powershell
+        run: |
+          Write-Host "Installing build dependencies in container..." -ForegroundColor Cyan
+          
+          docker exec brave-builder bash -c @"
+          set -e
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            build-essential git python3 python3-pip \
+            python-setuptools python3-distutils python-is-python3 \
+            curl lsb-release sudo tzdata wget ncdu zstd ca-certificates
+          curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+          apt-get install -y nodejs
+          echo ""
+          echo "=== Installed versions ==="
+          node --version
+          npm --version
+          python3 --version
+          git --version
+          "@
+          
+          Write-Host "✓ Dependencies installed" -ForegroundColor Green
+      
+      - name: Copy action code into container
+        shell: powershell
+        run: |
+          Write-Host "Copying GitHub Action code into container..." -ForegroundColor Cyan
+          
+          # Copy the entire .github directory
+          docker exec brave-builder mkdir -p /workspace/.github
+          docker cp .github/actions brave-builder:/workspace/.github/
+          
+          Write-Host "✓ Action code copied" -ForegroundColor Green
+      
+      - name: Install action dependencies in container
+        shell: powershell
+        run: |
+          Write-Host "Installing Node.js dependencies for stage action..." -ForegroundColor Cyan
+          
+          docker exec -w /workspace/.github/actions/stage brave-builder npm install
+          
+          Write-Host "✓ Action dependencies installed" -ForegroundColor Green
+      
+      - name: Create GitHub output file in container
+        shell: powershell
+        run: |
+          docker exec brave-builder bash -c "mkdir -p /tmp && touch /tmp/github_output"
+      
+      - name: Run build stage ${{ inputs.stage }} in container
+        id: stage-container
+        shell: powershell
+        run: |
+          Write-Host "=== Running build stage ${{ inputs.stage }} inside container ===" -ForegroundColor Cyan
+          
+          # Run the stage action inside the container
+          $exitCode = 0
+          try {
+            docker exec `
+              -e GITHUB_WORKSPACE=/workspace `
+              -e GITHUB_OUTPUT=/tmp/github_output `
+              -e INPUT_FINISHED="${{ inputs.finished }}" `
+              -e INPUT_FROM_ARTIFACT="${{ inputs.from_artifact }}" `
+              -e INPUT_PLATFORM="${{ inputs.platform }}" `
+              -e INPUT_ARCH="${{ inputs.arch }}" `
+              -e INPUT_BUILD_TYPE="${{ inputs.build_type }}" `
+              -e INPUT_ENV_CONFIG="${{ secrets.BRAVE_ENV_CONFIG }}" `
+              -e ACTIONS_RUNTIME_TOKEN="${{ secrets.GITHUB_TOKEN }}" `
+              -e ACTIONS_RUNTIME_URL="${{ env.ACTIONS_RUNTIME_URL }}" `
+              -e ACTIONS_CACHE_URL="${{ env.ACTIONS_CACHE_URL }}" `
+              -w /workspace/.github/actions/stage `
+              brave-builder `
+              node src/main.js
+            
+            $exitCode = $LASTEXITCODE
+          } catch {
+            Write-Host "Error running stage: $_" -ForegroundColor Red
+            $exitCode = 1
+          }
+          
+          Write-Host ""
+          Write-Host "Stage exit code: $exitCode" -ForegroundColor $(if ($exitCode -eq 0) { "Green" } else { "Yellow" })
+          
+          # Get the output from the container
+          try {
+            $outputContent = docker exec brave-builder cat /tmp/github_output
+            Write-Host "Container output file content:" -ForegroundColor Cyan
+            Write-Host $outputContent
+            
+            if ($outputContent -match "finished=(.+)") {
+              $finishedValue = $matches[1].Trim()
+              Write-Host "Setting output finished=$finishedValue" -ForegroundColor Green
+              Add-Content -Path $env:GITHUB_OUTPUT -Value "finished=$finishedValue"
+            } else {
+              Write-Host "Warning: No 'finished' output found, defaulting to false" -ForegroundColor Yellow
+              Add-Content -Path $env:GITHUB_OUTPUT -Value "finished=false"
+            }
+          } catch {
+            Write-Host "Warning: Could not read output file: $_" -ForegroundColor Yellow
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "finished=false"
+          }
+          
+          if ($exitCode -ne 0) {
+            Write-Host "Stage completed with non-zero exit code, but continuing..." -ForegroundColor Yellow
+          }
+      
+      - name: Show disk usage in container
+        if: always()
+        shell: powershell
+        run: |
+          Write-Host "=== Disk usage inside container ===" -ForegroundColor Cyan
+          docker exec brave-builder df -h /workspace/brave-build
+          
+          Write-Host ""
+          Write-Host "=== Windows D: drive usage ===" -ForegroundColor Cyan
+          Get-PSDrive D | Format-Table Name, Used, Free, @{Name='FreeGB';Expression={[math]::Round($_.Free/1GB,2)}}
+      
+      - name: Show container logs (last 50 lines)
+        if: always()
+        shell: powershell
+        run: |
+          Write-Host "=== Container logs (last 50 lines) ===" -ForegroundColor Cyan
+          docker logs --tail 50 brave-builder
+      
+      - name: Stop and remove container
+        if: always()
+        shell: powershell
+        run: |
+          Write-Host "Cleaning up container..." -ForegroundColor Cyan
+          docker stop brave-builder
+          docker rm brave-builder
+          Write-Host "✓ Container removed" -ForegroundColor Green
+
