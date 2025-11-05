@@ -85,6 +85,10 @@ jobs:
           echo "Setting ownership for runner user..."
           chown -R runner:runner /home/runner/brave-build
           
+          echo "Configuring passwordless sudo for runner user..."
+          echo "runner ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/runner
+          chmod 440 /etc/sudoers.d/runner
+          
           echo "Native ext4 filesystem ready:"
           df -h /home/runner/brave-build
       
