@@ -54,9 +54,9 @@ jobs:
           Write-Host "=== Windows Disk Space ===" -ForegroundColor Cyan
           $drive = Get-PSDrive D
           $freeGB = [math]::Round($drive.Free/1GB,2)
-          Write-Host "D: drive - Free: $freeGB GB"
+          Write-Host "D drive - Free: $freeGB GB"
           Write-Host ""
-          Write-Host "✓ No cleanup needed - Windows D: drive has plenty of space!" -ForegroundColor Green
+          Write-Host "No cleanup needed - Windows D drive has plenty of space!" -ForegroundColor Green
       
       - name: Create work directory on D drive
         shell: powershell
@@ -157,6 +157,18 @@ jobs:
               -e ACTIONS_RUNTIME_TOKEN="${{ secrets.GITHUB_TOKEN }}" `
               -e ACTIONS_RUNTIME_URL="${{ env.ACTIONS_RUNTIME_URL }}" `
               -e ACTIONS_CACHE_URL="${{ env.ACTIONS_CACHE_URL }}" `
+              -e ACTIONS_RESULTS_URL="${{ env.ACTIONS_RESULTS_URL }}" `
+              -e GITHUB_RUN_ID="${{ github.run_id }}" `
+              -e GITHUB_RUN_NUMBER="${{ github.run_number }}" `
+              -e GITHUB_RUN_ATTEMPT="${{ github.run_attempt }}" `
+              -e GITHUB_REPOSITORY="${{ github.repository }}" `
+              -e GITHUB_SHA="${{ github.sha }}" `
+              -e GITHUB_REF="${{ github.ref }}" `
+              -e GITHUB_ACTOR="${{ github.actor }}" `
+              -e GITHUB_WORKFLOW="${{ github.workflow }}" `
+              -e GITHUB_ACTION="${{ github.action }}" `
+              -e RUNNER_TEMP=/tmp `
+              -e HOME=/root `
               -w /workspace/.github/actions/stage `
               brave-builder `
               node src/main.js
@@ -201,10 +213,10 @@ jobs:
           docker exec brave-builder df -h /workspace/brave-build
           
           Write-Host ""
-          Write-Host "=== Windows D: drive usage ===" -ForegroundColor Cyan
+          Write-Host "=== Windows D drive usage ===" -ForegroundColor Cyan
           $drive = Get-PSDrive D
           $freeGB = [math]::Round($drive.Free/1GB,2)
-          Write-Host "D: drive - Free: $freeGB GB"
+          Write-Host "D drive - Free: $freeGB GB"
       
       - name: Show container logs (last 50 lines)
         if: always()
