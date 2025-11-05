@@ -194,6 +194,34 @@ class BuildOrchestrator {
                 const buildDepsScript = path.join(this.builder.paths.srcDir, 'build', 'install-build-deps.sh');
                 await exec.exec('sudo', [buildDepsScript, '--no-prompt'], {ignoreReturnCode: true});
             }
+            
+            // Clean PCM files on macOS to prevent SDK path conflicts
+            if (this.platform === 'macos') {
+                console.log('\n=== Cleaning PCM Files (macOS) ===');
+                console.log('Removing precompiled C++ module files to prevent SDK path conflicts...');
+                console.log('These files will be regenerated with the current Xcode/SDK paths (~1-2 minutes)');
+                
+                const outDir = path.join(this.builder.paths.srcDir, 'out');
+                
+                // Check if out directory exists
+                try {
+                    await fs.access(outDir);
+                    
+                    // Delete all .pcm files in the out directory
+                    const pcmCount = await exec.exec('find', [
+                        outDir,
+                        '-name', '*.pcm',
+                        '-type', 'f',
+                        '-delete',
+                        '-print'
+                    ], {ignoreReturnCode: true});
+                    
+                    console.log('✓ PCM files cleaned successfully');
+                    console.log('  Ninja will regenerate these files with correct SDK paths on next build');
+                } catch (e) {
+                    console.log('No out directory found yet, skipping PCM cleanup');
+                }
+            }
 
         } catch (e) {
             console.error(`Failed to restore from artifact: ${e.message}`);
