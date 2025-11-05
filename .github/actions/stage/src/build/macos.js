@@ -140,7 +140,6 @@ class MacOSBuilder {
             
             // Wait for processes to finish cleanup (longer on macOS)
             await waitAndSync(30000); // 30 seconds
-            const timeouts = getTimeouts(this.platform);
             await waitAndSync(timeouts.SYNC_WAIT);
             
             return {success: false, timedOut: true};
@@ -179,7 +178,6 @@ class MacOSBuilder {
         console.log(`Final timeout: ${timing.timeoutMinutes} minutes (${timing.remainingHours} hours)`);
         
         // Check if we have enough time for create_dist (minimum 30 minutes)
-        const timeouts = getTimeouts(this.platform);
         const remainingMs = timeouts.MAX_BUILD_TIME - (Date.now() - this.jobStartTime);
         if (remainingMs < timeouts.MIN_DIST_BUILD_TIME) {
             console.log(`⏱️ Less than 30 minutes remaining (${(remainingMs / 60000).toFixed(1)} mins)`);
@@ -209,7 +207,6 @@ class MacOSBuilder {
             
             // Wait for processes to finish cleanup (longer on macOS)
             await waitAndSync(30000); // 30 seconds
-            const timeouts = getTimeouts(this.platform);
             await waitAndSync(timeouts.SYNC_WAIT);
             
             return {success: false, timedOut: true};
