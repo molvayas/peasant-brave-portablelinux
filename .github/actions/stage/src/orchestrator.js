@@ -195,6 +195,16 @@ class BuildOrchestrator {
                 await exec.exec('sudo', [buildDepsScript, '--no-prompt'], {ignoreReturnCode: true});
             }
             
+            // Setup Xcode environment on macOS (critical for SDK consistency)
+            if (this.platform === 'macos') {
+                console.log('\n=== Re-initializing Xcode Environment (Post-Restore) ===');
+                console.log('Ensuring consistent Xcode/SDK selection after checkpoint restore...');
+                // Call the builder's Xcode setup to ensure we use the same Xcode version
+                if (typeof this.builder._setupXcode === 'function') {
+                    await this.builder._setupXcode();
+                }
+            }
+            
             // Clean PCM and Ninja metadata files on macOS to prevent SDK path conflicts
             if (this.platform === 'macos') {
                 console.log('\n=== Cleaning Build Metadata (macOS) ===');

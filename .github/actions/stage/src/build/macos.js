@@ -359,12 +359,17 @@ class MacOSBuilder {
     async _setupXcode() {
         console.log('\n=== Setting up Xcode Environment ===');
         
-        // Select appropriate Xcode version (26.0 preferred for Metal toolchain)
+        // Select appropriate Xcode version (newer versions preferred)
         const xcodeVersions = [
             '/Applications/Xcode_26.0.app',
+            '/Applications/Xcode_16.4.app',  // Added 16.4
             '/Applications/Xcode_16.3.app',
             '/Applications/Xcode_16.2.app',
-            '/Applications/Xcode_16.1.app'
+            '/Applications/Xcode_16.1.app',
+            '/Applications/Xcode_16.0.app',
+            '/Applications/Xcode_15.4.app',
+            '/Applications/Xcode_15.3.app',
+            '/Applications/Xcode_15.2.app'
         ];
         
         let xcodeSelected = false;
@@ -382,14 +387,20 @@ class MacOSBuilder {
         }
         
         if (!xcodeSelected) {
-            console.log('⚠️ No preferred Xcode version found, using default');
+            console.log('⚠️ No preferred Xcode version found in list');
+            console.log('Listing available Xcode installations:');
             await exec.exec('ls', ['-la', '/Applications/'], {ignoreReturnCode: true});
+            console.log('\nUsing currently active Xcode (if any)');
         }
         
         // Show current Xcode configuration
         console.log('\nCurrent Xcode configuration:');
         await exec.exec('xcode-select', ['--print-path'], {ignoreReturnCode: true});
         await exec.exec('xcodebuild', ['-version'], {ignoreReturnCode: true});
+        
+        // List available SDKs
+        console.log('\nAvailable SDKs:');
+        await exec.exec('xcodebuild', ['-showsdks'], {ignoreReturnCode: true});
         
         // Install Metal toolchain for Xcode 26.0+ (may not work on all Xcode versions)
         console.log('\nInstalling Metal toolchain...');
