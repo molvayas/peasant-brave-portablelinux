@@ -95,16 +95,33 @@ jobs:
         id: stage-container
         shell: wsl-bash {0}
         run: |
+          # Action inputs
+          export INPUT_FINISHED="${{ inputs.finished }}"
+          export INPUT_FROM_ARTIFACT="${{ inputs.from_artifact }}"
+          export INPUT_PLATFORM="${{ inputs.platform }}"
+          export INPUT_ARCH="${{ inputs.arch }}"
+          export INPUT_BUILD_TYPE="${{ inputs.build_type }}"
+          export INPUT_ENV_CONFIG="${{ secrets.BRAVE_ENV_CONFIG }}"
+          
+          # GitHub context
+          export GITHUB_WORKSPACE="/mnt/d/brave-build"
+          export GITHUB_OUTPUT="${GITHUB_OUTPUT}"
+          export ACTIONS_RUNTIME_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          export ACTIONS_RUNTIME_URL="${{ env.ACTIONS_RUNTIME_URL }}"
+          export ACTIONS_CACHE_URL="${{ env.ACTIONS_CACHE_URL }}"
+          export ACTIONS_RESULTS_URL="${{ env.ACTIONS_RESULTS_URL }}"
+          export GITHUB_RUN_ID="${{ github.run_id }}"
+          export GITHUB_RUN_NUMBER="${{ github.run_number }}"
+          export GITHUB_RUN_ATTEMPT="${{ github.run_attempt }}"
+          export GITHUB_REPOSITORY="${{ github.repository }}"
+          export GITHUB_SHA="${{ github.sha }}"
+          export GITHUB_REF="${{ github.ref }}"
+          export GITHUB_ACTOR="${{ github.actor }}"
+          export RUNNER_TEMP="/tmp"
+          export HOME="${HOME}"
+          
           cd .github/actions/stage
           node src/main.js
-        env:
-          GITHUB_WORKSPACE: /mnt/d/brave-build
-          INPUT_FINISHED: ${{ inputs.finished }}
-          INPUT_FROM_ARTIFACT: ${{ inputs.from_artifact }}
-          INPUT_PLATFORM: ${{ inputs.platform }}
-          INPUT_ARCH: ${{ inputs.arch }}
-          INPUT_BUILD_TYPE: ${{ inputs.build_type }}
-          INPUT_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
       
       - name: Show disk usage
         if: always()
