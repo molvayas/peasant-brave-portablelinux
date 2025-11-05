@@ -338,7 +338,7 @@ jobs:
             
             ### Build Details
             - Container: Ubuntu 22.04
-            - Host: Windows runner with D: drive
+            - Host: Windows runner with D drive
             - Disk space: ~90GB available (no cleanup needed!)
           draft: false
           prerelease: false
