@@ -88,7 +88,7 @@ jobs:
         run: |
           Write-Host "Installing build dependencies in container..." -ForegroundColor Cyan
           
-          docker exec brave-builder bash -c @"
+          $installScript = @'
           set -e
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -103,7 +103,9 @@ jobs:
           npm --version
           python3 --version
           git --version
-          "@
+          '@
+          
+          docker exec brave-builder bash -c $installScript
           
           Write-Host "✓ Dependencies installed" -ForegroundColor Green
       
