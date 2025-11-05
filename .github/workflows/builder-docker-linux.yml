@@ -53,7 +53,8 @@ jobs:
         run: |
           Write-Host "=== Windows Disk Space ===" -ForegroundColor Cyan
           $drive = Get-PSDrive D
-          Write-Host "D: drive - Free: $([math]::Round($drive.Free/1GB,2)) GB"
+          $freeGB = [math]::Round($drive.Free/1GB,2)
+          Write-Host "D: drive - Free: $freeGB GB"
           Write-Host ""
           Write-Host "✓ No cleanup needed - Windows D: drive has plenty of space!" -ForegroundColor Green
       
@@ -202,7 +203,8 @@ jobs:
           Write-Host ""
           Write-Host "=== Windows D: drive usage ===" -ForegroundColor Cyan
           $drive = Get-PSDrive D
-          Write-Host "D: drive - Free: $([math]::Round($drive.Free/1GB,2)) GB"
+          $freeGB = [math]::Round($drive.Free/1GB,2)
+          Write-Host "D: drive - Free: $freeGB GB"
       
       - name: Show container logs (last 50 lines)
         if: always()
