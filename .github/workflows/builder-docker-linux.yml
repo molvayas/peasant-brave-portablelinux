@@ -105,7 +105,8 @@ jobs:
           export INPUT_BUILD_TYPE="${{ inputs.build_type }}"
           export INPUT_ENV_CONFIG="${{ secrets.BRAVE_ENV_CONFIG }}"
           
-          # GitHub context - keep GITHUB_WORKSPACE as is (repo location)
+          # GitHub context
+          export GITHUB_WORKSPACE="${{ github.workspace }}"
           export GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output}"
           export ACTIONS_RUNTIME_TOKEN="${{ secrets.GITHUB_TOKEN }}"
           export ACTIONS_RUNTIME_URL="${{ env.ACTIONS_RUNTIME_URL }}"
