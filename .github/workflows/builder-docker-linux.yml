@@ -64,6 +64,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path "D:\brave-build" | Out-Null
           Write-Host "Created D:\brave-build" -ForegroundColor Green
       
+      - name: Switch Docker to Linux containers
+        shell: powershell
+        run: |
+          Write-Host "Switching Docker to Linux container mode..." -ForegroundColor Cyan
+          & "C:\Program Files\Docker\Docker\DockerCli.exe" -SwitchLinuxEngine
+          Start-Sleep -Seconds 10
+          Write-Host "Docker switched to Linux mode" -ForegroundColor Green
+      
       - name: Pull Ubuntu Docker image
         shell: powershell
         run: |
