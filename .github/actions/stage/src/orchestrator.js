@@ -202,7 +202,7 @@ class BuildOrchestrator {
     }
 
     /**
-     * Run build stages (init -> build -> package)
+     * Run build stages (init -> build -> build_dist -> package)
      */
     async _runBuildStages() {
         const currentStage = await this.builder.getCurrentStage();
@@ -227,14 +227,44 @@ class BuildOrchestrator {
             const buildResult = await this.builder.runBuild();
             
             if (buildResult.success) {
-                await this.builder.setStage(STAGES.PACKAGE);
-                await diskAnalyzer.analyze('post-build');
-                return true;
+                // For Release builds, go to BUILD_DIST stage; for Component, go to PACKAGE
+                if (this.buildType === 'Release') {
+                    await this.builder.setStage(STAGES.BUILD_DIST);
+                    await diskAnalyzer.analyze('post-build');
+                } else {
+                    await this.builder.setStage(STAGES.PACKAGE);
+                    await diskAnalyzer.analyze('post-build');
+                    return true;
+                }
             } else if (buildResult.timedOut) {
                 console.log('Build timed out, will resume in next run');
                 return false;
             } else {
                 console.log('Build failed, will retry in next run');
+                return false;
+            }
+        }
+
+        // Stage 3: create_dist (Release builds only)
+        if (currentStage === STAGES.BUILD_DIST || await this.builder.getCurrentStage() === STAGES.BUILD_DIST) {
+            // Check if builder has runBuildDist method
+            if (typeof this.builder.runBuildDist !== 'function') {
+                console.log('Builder does not support runBuildDist, skipping to package stage');
+                await this.builder.setStage(STAGES.PACKAGE);
+                return true;
+            }
+            
+            const distResult = await this.builder.runBuildDist();
+            
+            if (distResult.success) {
+                await this.builder.setStage(STAGES.PACKAGE);
+                await diskAnalyzer.analyze('post-dist');
+                return true;
+            } else if (distResult.timedOut) {
+                console.log('create_dist timed out, will resume in next run');
+                return false;
+            } else {
+                console.log('create_dist failed, will retry in next run');
                 return false;
             }
         }

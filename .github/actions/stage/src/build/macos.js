@@ -112,9 +112,10 @@ class MacOSBuilder {
         // Build command based on buildType
         let buildArgs;
         if (this.buildType === 'Release') {
-            // Release: build + create distribution packages (unsigned)
-            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing'];
-            console.log('Running npm run build Release with create_dist (unsigned)...');
+            // Release: build browser only (no create_dist yet)
+            buildArgs = ['run', 'build', 'Release'];
+            console.log('Running npm run build Release (browser only, no create_dist)...');
+            console.log('Note: create_dist will run in next stage to avoid SDK/PCM checkpoint issues');
         } else {
             // Component: just build
             buildArgs = ['run', 'build'];
@@ -144,6 +145,72 @@ class MacOSBuilder {
             return {success: false, timedOut: true};
         } else {
             console.log(`✗ npm run build failed with code ${buildCode}`);
+            return {success: false, timedOut: false};
+        }
+    }
+
+    /**
+     * Run create_dist stage (Release builds only)
+     */
+    async runBuildDist() {
+        this._ensurePaths();
+        console.log('\n=== Stage: create_dist (Release only) ===');
+        
+        if (this.buildType !== 'Release') {
+            console.log('Skipping create_dist - not a Release build');
+            return {success: true, timedOut: false};
+        }
+        
+        // Calculate timeout based on time elapsed since job start
+        if (!this.jobStartTime) {
+            throw new Error('jobStartTime not set! Orchestrator must set this before calling runBuildDist()');
+        }
+        
+        const timing = calculateBuildTimeout(
+            this.jobStartTime,
+            TIMEOUTS.MAX_BUILD_TIME,
+            TIMEOUTS.MIN_BUILD_TIME
+        );
+        
+        console.log(`Time elapsed in job: ${timing.elapsedHours} hours`);
+        console.log(`Remaining time calculated: ${timing.remainingHours} hours`);
+        console.log(`Final timeout: ${timing.timeoutMinutes} minutes (${timing.remainingHours} hours)`);
+        
+        // Check if we have enough time for create_dist (minimum 30 minutes)
+        const remainingMs = TIMEOUTS.MAX_BUILD_TIME - (Date.now() - this.jobStartTime);
+        if (remainingMs < TIMEOUTS.MIN_DIST_BUILD_TIME) {
+            console.log(`⏱️ Less than 30 minutes remaining (${(remainingMs / 60000).toFixed(1)} mins)`);
+            console.log('Checkpointing for next stage to ensure create_dist completes successfully');
+            return {success: false, timedOut: true};
+        }
+        
+        // Run create_dist (should be fast since browser is already built)
+        const buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing'];
+        console.log('Running create_dist to generate distribution packages (unsigned)...');
+        console.log('This should be fast since browser is already built (~5-15 minutes)');
+        console.log(`Command: npm ${buildArgs.join(' ')}`);
+        
+        // Use gtimeout on macOS (from coreutils)
+        const buildCode = await execWithTimeout('npm', buildArgs, {
+            cwd: this.paths.braveDir,
+            timeoutSeconds: timing.timeoutSeconds,
+            useGTimeout: true  // Use gtimeout instead of timeout on macOS
+        });
+        
+        if (buildCode === 0) {
+            console.log('✓ create_dist completed successfully');
+            return {success: true, timedOut: false};
+        } else if (buildCode === 124) {
+            // Timeout
+            console.log('⏱️ create_dist timed out - will resume in next stage');
+            
+            // Wait for processes to finish cleanup (longer on macOS)
+            await waitAndSync(30000); // 30 seconds
+            await waitAndSync(TIMEOUTS.SYNC_WAIT);
+            
+            return {success: false, timedOut: true};
+        } else {
+            console.log(`✗ create_dist failed with code ${buildCode}`);
             return {success: false, timedOut: false};
         }
     }

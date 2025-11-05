@@ -64,71 +64,37 @@ jobs:
           distribution: Ubuntu-22.04
           set-as-default: 'true'
       
-      - name: Create work directory on D drive (as root)
+      - name: Create work directory on D drive
         shell: wsl-bash -u root {0}
         run: |
-          echo "Creating directory /mnt/d/brave-build..."
           mkdir -p /mnt/d/brave-build
-          echo "Directory created"
-          
-          echo "Setting permissions..."
           chmod 777 /mnt/d/brave-build
-          echo "Permissions set"
-          
-          echo "Verifying directory..."
-          ls -la /mnt/d/ | grep brave-build
-          
-          echo "Work directory setup complete"
+          ls -ld /mnt/d/brave-build
+          echo "Work directory ready"
       
-      - name: Install build dependencies in WSL (as root)
+      - name: Install build dependencies in WSL
         shell: wsl-bash -u root {0}
         run: |
           set -e
-          echo "Starting dependency installation..."
-          
-          echo "Updating package lists..."
-          apt-get update
-          
-          echo "Installing build tools..."
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
             build-essential git python3 python3-pip \
             python-setuptools python3-distutils python-is-python3 \
             curl lsb-release sudo tzdata wget ncdu zstd ca-certificates
-          
-          echo "Installing Node.js repository..."
           curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
-          
-          echo "Installing Node.js..."
-          apt-get install -y nodejs
-          
-          echo ""
-          echo "=== Installed versions ==="
-          node --version
-          npm --version
-          python3 --version
-          git --version
-          
-          echo "Dependencies installed successfully"
+          apt-get install -y -qq nodejs
+          node --version && npm --version
       
       - name: Install action dependencies
         shell: wsl-bash {0}
         run: |
-          echo "Installing npm dependencies for stage action..."
           cd .github/actions/stage
-          npm install
-          echo "Action dependencies installed"
+          npm install --silent
       
       - name: Run build stage ${{ inputs.stage }} in WSL
         id: stage-container
         shell: wsl-bash {0}
         run: |
-          echo "=== Running build stage ${{ inputs.stage }} ==="
-          echo "Platform: $INPUT_PLATFORM"
-          echo "Arch: $INPUT_ARCH"
-          echo "Build type: $INPUT_BUILD_TYPE"
-          echo "Workspace: $GITHUB_WORKSPACE"
-          echo ""
-          
           cd .github/actions/stage
           node src/main.js
         env:
@@ -143,10 +109,5 @@ jobs:
       - name: Show disk usage
         if: always()
         shell: wsl-bash {0}
-        run: |
-          echo "=== Disk usage in WSL ==="
-          df -h /mnt/d/brave-build
-          echo ""
-          echo "=== D drive space ==="
-          df -h /mnt/d
+        run: df -h /mnt/d
 

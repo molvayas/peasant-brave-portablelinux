@@ -8,6 +8,7 @@ const path = require('path');
 const TIMEOUTS = {
     MAX_BUILD_TIME: 240 * 60 * 1000, // 4.33 hours
     MIN_BUILD_TIME: 5 * 60 * 1000,   // 5 minutes
+    MIN_DIST_BUILD_TIME: 30 * 60 * 1000,  // 30 minutes for create_dist phase
     CLEANUP_WAIT: 10 * 1000,          // 10 seconds
     SYNC_WAIT: 10 * 1000              // 10 seconds
 };
@@ -93,6 +94,7 @@ const ARCHITECTURES = {
 const STAGES = {
     INIT: 'init',
     BUILD: 'build',
+    BUILD_DIST: 'build_dist',  // Release only: create distribution after browser build
     PACKAGE: 'package'
 };
 
