@@ -63,27 +63,35 @@ jobs:
         run: |
           $envFile = "D:\github-actions.env"
           
-          $content = @"
-          export ACTIONS_RUNTIME_TOKEN='$env:ACTIONS_RUNTIME_TOKEN'
-          export ACTIONS_RUNTIME_URL='$env:ACTIONS_RUNTIME_URL'
-          export ACTIONS_CACHE_URL='$env:ACTIONS_CACHE_URL'
-          export ACTIONS_RESULTS_URL='$env:ACTIONS_RESULTS_URL'
-          export GITHUB_RUN_ID='${{ github.run_id }}'
-          export GITHUB_RUN_NUMBER='${{ github.run_number }}'
-          export GITHUB_RUN_ATTEMPT='${{ github.run_attempt }}'
-          export GITHUB_REPOSITORY='${{ github.repository }}'
-          export GITHUB_SHA='${{ github.sha }}'
-          export GITHUB_REF='${{ github.ref }}'
-          export GITHUB_ACTOR='${{ github.actor }}'
-          export GITHUB_WORKFLOW='${{ github.workflow }}'
-          export GITHUB_ACTION='${{ github.action }}'
-          export GITHUB_EVENT_NAME='${{ github.event_name }}'
-          "@
+          # Get all environment variables that start with ACTIONS_ or GITHUB_
+          Write-Host "=== Looking for GitHub Actions environment variables ==="
+          $actionsVars = Get-ChildItem env: | Where-Object { $_.Name -like "ACTIONS_*" -or $_.Name -like "GITHUB_*" }
           
+          Write-Host "Found $($actionsVars.Count) variables:"
+          $actionsVars | ForEach-Object { Write-Host "  $($_.Name)" }
+          
+          # Build export statements
+          $exports = @()
+          $actionsVars | ForEach-Object {
+            $exports += "export $($_.Name)='$($_.Value)'"
+          }
+          
+          # Add context variables from workflow
+          $exports += "export GITHUB_RUN_ID='${{ github.run_id }}'"
+          $exports += "export GITHUB_RUN_NUMBER='${{ github.run_number }}'"
+          $exports += "export GITHUB_RUN_ATTEMPT='${{ github.run_attempt }}'"
+          $exports += "export GITHUB_REPOSITORY='${{ github.repository }}'"
+          $exports += "export GITHUB_SHA='${{ github.sha }}'"
+          $exports += "export GITHUB_REF='${{ github.ref }}'"
+          $exports += "export GITHUB_ACTOR='${{ github.actor }}'"
+          $exports += "export GITHUB_WORKFLOW='${{ github.workflow }}'"
+          
+          $content = $exports -join "`n"
           [System.IO.File]::WriteAllText($envFile, $content)
           
-          Write-Host "GitHub Actions environment captured"
-          Write-Host "ACTIONS_RUNTIME_URL: $($env:ACTIONS_RUNTIME_URL.Substring(0,50))..."
+          Write-Host "`n=== Environment file created ==="
+          Write-Host "First 5 lines:"
+          Get-Content $envFile | Select-Object -First 5
       
       - name: Setup WSL Ubuntu
         uses: Vampire/setup-wsl@v6
