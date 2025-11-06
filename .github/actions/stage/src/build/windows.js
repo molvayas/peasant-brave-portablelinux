@@ -120,13 +120,15 @@ class WindowsBuilder {
         let buildArgs;
         if (this.buildType === 'Release') {
             // Release: build browser and create distribution package in one go
-            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing'];
+            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing', '--gn', 'symbol_level:0'];
             console.log('Running npm run build Release with create_dist (unified)...');
             console.log('Note: Unified for consistency with macOS after Xcode initialization fix');
+            console.log('Note: Building with symbol_level:0 to reduce build size and time');
         } else {
             // Component: just build
-            buildArgs = ['run', 'build'];
+            buildArgs = ['run', 'build', '--', '--gn', 'symbol_level:0'];
             console.log('Running npm run build (component)...');
+            console.log('Note: Building with symbol_level:0 to reduce build size and time');
         }
         
         console.log(`Final timeout: ${(remainingTime / 60000).toFixed(0)} minutes`);
