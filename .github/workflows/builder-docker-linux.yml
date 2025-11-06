@@ -66,16 +66,39 @@ jobs:
           wsl-shell-user: runner
           update: 'true'
       
-      - name: Check and capture GitHub Actions environment
-        shell: pwsh
+      - name: Quick Test - Create test file in WSL
+        shell: wsl-bash {0}
         run: |
-          Write-Host "=== Checking GitHub Actions Runtime Environment ==="
-          
-          # Check if ACTIONS_RUNTIME variables exist using Node.js
-          node -e "const e=['ACTIONS_RUNTIME_TOKEN','ACTIONS_RUNTIME_URL','ACTIONS_CACHE_URL','ACTIONS_RESULTS_URL'];console.log('Variables in Node.js process:');e.forEach(k=>{const v=process.env[k];console.log(k+': '+(v?'SET ('+v.length+' chars)':'NOT SET'));});"
-          
-          Write-Host "`nNote: ACTIONS_RUNTIME_* variables may only be available within action runtime context"
-          Write-Host "Proceeding with build - artifacts will be uploaded using Node.js action runtime"
+          mkdir -p /tmp/artifact-test-wsl
+          echo "Test from WSL - Stage ${{ inputs.stage }}" > /tmp/artifact-test-wsl/test-wsl.txt
+          echo "Build: ${{ github.run_number }}" >> /tmp/artifact-test-wsl/test-wsl.txt
+          date >> /tmp/artifact-test-wsl/test-wsl.txt
+          cat /tmp/artifact-test-wsl/test-wsl.txt
+      
+      - name: Quick Test - Upload from WSL using native upload-artifact action
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-from-wsl-stage-${{ inputs.stage }}
+          path: /tmp/artifact-test-wsl/test-wsl.txt
+          retention-days: 1
+          compression-level: 0
+      
+      - name: Quick Test - Create test file on Windows
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "D:\artifact-test-windows"
+          "Test from Windows - Stage ${{ inputs.stage }}" | Out-File -FilePath "D:\artifact-test-windows\test-windows.txt"
+          "Build: ${{ github.run_number }}" | Out-File -Append -FilePath "D:\artifact-test-windows\test-windows.txt"
+          Get-Date | Out-File -Append -FilePath "D:\artifact-test-windows\test-windows.txt"
+          Get-Content "D:\artifact-test-windows\test-windows.txt"
+      
+      - name: Quick Test - Upload from Windows natively
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-from-windows-stage-${{ inputs.stage }}
+          path: D:\artifact-test-windows\test-windows.txt
+          retention-days: 1
+          compression-level: 0
       
       - name: Create virtual ext4 filesystem on D drive
         shell: wsl-bash -u root {0}
@@ -143,70 +166,6 @@ jobs:
           npm --version
           python3 --version
       
-      - name: Quick artifact upload test from WSL
-        shell: wsl-bash {0}
-        run: |
-          set -e
-          echo "=== Quick Artifact Upload Test from WSL ==="
-          
-          # Create test directory and file
-          mkdir -p /tmp/quick-test
-          echo "Quick test from WSL - Stage ${{ inputs.stage }}" > /tmp/quick-test/test.txt
-          echo "Build: ${{ github.run_number }}" >> /tmp/quick-test/test.txt
-          echo "Timestamp: $(date)" >> /tmp/quick-test/test.txt
-          echo "ACTIONS_RUNTIME_URL from process.env: will be checked in Node" >> /tmp/quick-test/test.txt
-          
-          echo "Test file created:"
-          cat /tmp/quick-test/test.txt
-          
-          # Create a test script that mimics the orchestrator
-          cat > /tmp/quick-test/test-upload.js << 'EOFJS'
-          const {DefaultArtifactClient} = require('@actions/artifact');
-          const fs = require('fs');
-          
-          (async () => {
-            try {
-              console.log('\n=== Checking Runtime Environment ===');
-              console.log('ACTIONS_RUNTIME_URL:', process.env.ACTIONS_RUNTIME_URL ? 'SET' : 'NOT SET');
-              console.log('ACTIONS_RUNTIME_TOKEN:', process.env.ACTIONS_RUNTIME_TOKEN ? 'SET (****)' : 'NOT SET');
-              console.log('ACTIONS_CACHE_URL:', process.env.ACTIONS_CACHE_URL ? 'SET' : 'NOT SET');
-              
-              console.log('\n=== Attempting Artifact Upload ===');
-              const artifact = new DefaultArtifactClient();
-              
-              const result = await artifact.uploadArtifact(
-                'wsl-quick-test-stage-${{ inputs.stage }}',
-                ['test.txt'],
-                '/tmp/quick-test',
-                {
-                  retentionDays: 1,
-                  compressionLevel: 0
-                }
-              );
-              
-              console.log('\nSUCCESS: Artifact uploaded from WSL!');
-              console.log('Artifact ID:', result.id);
-              console.log('Size:', result.size, 'bytes');
-            } catch (e) {
-              console.error('\nFAILED:', e.message);
-              console.error('Stack:', e.stack);
-              process.exit(1);
-            }
-          })();
-          EOFJS
-          
-          # Install dependencies and run test
-          cd /tmp/quick-test
-          echo "Installing @actions/artifact..."
-          npm init -y > /dev/null 2>&1
-          npm install @actions/artifact@2.2.1 --no-save 2>&1 | grep -v "^npm"
-          
-          echo "Running upload test..."
-          node test-upload.js
-          
-          echo ""
-          echo "Test completed - proceeding with build"
-      
       - name: Install action dependencies
         shell: wsl-bash {0}
         run: |
@@ -222,32 +181,25 @@ jobs:
       - name: Run build stage ${{ inputs.stage }} in WSL
         id: stage-container
         shell: wsl-bash {0}
-        env:
-          ACTIONS_RUNTIME_TOKEN: ${{ env.ACTIONS_RUNTIME_TOKEN }}
-          ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
-          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
-          ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
-          INPUT_FINISHED: ${{ inputs.finished }}
-          INPUT_FROM_ARTIFACT: ${{ inputs.from_artifact }}
-          INPUT_PLATFORM: ${{ inputs.platform }}
-          INPUT_ARCH: ${{ inputs.arch }}
-          INPUT_BUILD_TYPE: ${{ inputs.build_type }}
-          INPUT_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
         run: |
           set -e
           
-          # Set workspace path
+          # Set workspace and environment
           export GITHUB_WORKSPACE="/home/runner/brave-build/workspace"
-          
-          # GitHub context variables
+          export INPUT_FINISHED="${{ inputs.finished }}"
+          export INPUT_FROM_ARTIFACT="${{ inputs.from_artifact }}"
+          export INPUT_PLATFORM="${{ inputs.platform }}"
+          export INPUT_ARCH="${{ inputs.arch }}"
+          export INPUT_BUILD_TYPE="${{ inputs.build_type }}"
+          export INPUT_ENV_CONFIG="${{ secrets.BRAVE_ENV_CONFIG }}"
           export GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output}"
           export RUNNER_TEMP="${RUNNER_TEMP:-/tmp}"
           export HOME="/home/runner"
           export GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
           
           echo "Using native workspace: $GITHUB_WORKSPACE"
-          echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:0:40}..."
           echo "Starting build stage ${{ inputs.stage }}..."
+          echo "Note: ACTIONS_RUNTIME_* variables are injected by GitHub Actions runner"
           
           cd "$GITHUB_WORKSPACE/.github/actions/stage" || exit 1
           node src/main.js
