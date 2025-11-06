@@ -46,7 +46,6 @@ const PLATFORMS = {
         runner: 'ubuntu-latest',
         workDir: '/home/runner/brave-build',
         nodeModulesCache: '/home/runner/.npm',
-        outputDirName: 'Component',
         executable: 'brave',
         packageFormat: 'tar.xz',
         volumeSize: '2G',
@@ -61,11 +60,32 @@ const PLATFORMS = {
             'third_party/android_*'
         ]
     },
+    'linux-wsl': {
+        runner: 'windows-latest',  // Runs on Windows with WSL
+        workDir: '/home/runner/brave-build',  // WSL path
+        nodeModulesCache: '/home/runner/.npm',
+        executable: 'brave',
+        packageFormat: 'tar.xz',
+        volumeSize: '10G',  // Much larger volumes thanks to D: drive (145GB available)
+        dependencies: [
+            'build-essential', 'git', 'python3', 'python3-pip',
+            'python-setuptools', 'python3-distutils', 'python-is-python3',
+            'curl', 'lsb-release', 'sudo', 'tzdata', 'wget', 'ncdu', 'zstd'
+        ],
+        cleanupDirs: [
+            'ios',
+            'third_party/jdk',
+            'third_party/android_*'
+        ],
+        // WSL-specific settings
+        useNativeFilesystem: true,  // Use ext4 VHD on D: drive
+        vhdSize: '140G',  // Virtual disk size
+        vhdPath: '/mnt/d/wsl-vhd/brave-build.ext4'
+    },
     macos: {
         runner: 'macos-latest',
         workDir: '/Users/runner/brave-build',
         nodeModulesCache: '/Users/runner/.npm',
-        outputDirName: 'Component',
         executable: 'Brave Browser.app',
         packageFormat: 'tar.xz',
         volumeSize: '7G',
@@ -81,7 +101,6 @@ const PLATFORMS = {
         runner: 'windows-latest',
         workDir: 'D:\\brave-build',
         nodeModulesCache: 'C:\\Users\\runner\\.npm',
-        outputDirName: 'Component',
         executable: 'brave.exe',
         packageFormat: 'zip',
         archiveCommand: '7z',  // Use 7-Zip for archiving
@@ -126,12 +145,40 @@ const ARTIFACTS = {
 };
 
 /**
+ * Detect if running in WSL environment
+ * @returns {boolean} True if running in WSL
+ */
+function isWSL() {
+    // Check for WSL_DISTRO_NAME environment variable (set by setup-wsl action)
+    if (process.env.WSL_DISTRO_NAME) {
+        return true;
+    }
+    
+    // Alternative: check if /proc/version contains "microsoft" or "WSL"
+    try {
+        const fs = require('fs');
+        const procVersion = fs.readFileSync('/proc/version', 'utf8').toLowerCase();
+        return procVersion.includes('microsoft') || procVersion.includes('wsl');
+    } catch (e) {
+        return false;
+    }
+}
+
+/**
  * Get platform configuration
- * @param {string} platform - Platform name (linux, macos, windows)
+ * @param {string} platform - Platform name (linux, macos, windows, linux-wsl)
  * @returns {object} Platform configuration
  */
 function getPlatformConfig(platform) {
-    const config = PLATFORMS[platform.toLowerCase()];
+    let platformKey = platform.toLowerCase();
+    
+    // Auto-detect WSL for Linux platform
+    if (platformKey === 'linux' && isWSL()) {
+        console.log('🐧 Detected WSL environment - using linux-wsl configuration');
+        platformKey = 'linux-wsl';
+    }
+    
+    const config = PLATFORMS[platformKey];
     if (!config) {
         throw new Error(`Unsupported platform: ${platform}`);
     }
@@ -213,6 +260,7 @@ module.exports = {
     getPlatformConfig,
     getArchConfig,
     getBuildPaths,
-    getTimeouts
+    getTimeouts,
+    isWSL
 };
 

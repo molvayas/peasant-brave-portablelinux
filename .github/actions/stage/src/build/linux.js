@@ -6,7 +6,7 @@ const exec = require('@actions/exec');
 const core = require('@actions/core');
 const fs = require('fs').promises;
 const path = require('path');
-const {getPlatformConfig, getBuildPaths, STAGES, getTimeouts} = require('../config/constants');
+const {getPlatformConfig, getBuildPaths, STAGES, getTimeouts, isWSL} = require('../config/constants');
 const {cleanupDirectories} = require('../utils/disk');
 const {execWithTimeout, calculateBuildTimeout, waitAndSync} = require('../utils/exec');
 
@@ -15,7 +15,8 @@ class LinuxBuilder {
         this.braveVersion = braveVersion;
         this.arch = arch;
         this.platform = 'linux';
-        this.config = getPlatformConfig(this.platform);
+        this.isWSL = isWSL();
+        this.config = getPlatformConfig(this.platform);  // Will auto-detect WSL
         // buildType will be set by orchestrator after construction
         this.buildType = 'Component';
         // jobStartTime will be set by orchestrator after construction
@@ -45,6 +46,17 @@ class LinuxBuilder {
         console.log(`Architecture: ${this.arch}`);
         console.log(`Build type: ${this.buildType}`);
         console.log(`Work directory: ${this.paths.workDir}`);
+        
+        if (this.isWSL) {
+            console.log('🐧 Running in WSL environment');
+            console.log(`Volume size for archives: ${this.config.volumeSize} (larger due to D: drive space)`);
+            if (this.config.vhdSize) {
+                console.log(`Virtual disk: ${this.config.vhdSize} ext4 filesystem`);
+            }
+        } else {
+            console.log('🐧 Running on native Linux');
+            console.log(`Volume size for archives: ${this.config.volumeSize}`);
+        }
         
         // Install base dependencies
         await this._installBaseDependencies();

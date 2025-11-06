@@ -72,18 +72,19 @@ jobs:
       - name: Configure WSLENV for ACTIONS variables
         shell: powershell
         run: |
-          # Configure WSLENV to pass ACTIONS_* variables to WSL
+          # Configure WSLENV to pass ACTIONS_* and GITHUB_* variables to WSL
           $wslenvVars = @(
             'ACTIONS_RUNTIME_TOKEN/u',
             'ACTIONS_RUNTIME_URL/u', 
             'ACTIONS_CACHE_URL/u',
             'ACTIONS_RESULTS_URL/u',
-            'ACTIONS_CACHE_SERVICE_V2/u'
+            'ACTIONS_CACHE_SERVICE_V2/u',
+            'GITHUB_OUTPUT/p'
           )
           $wslenv = $wslenvVars -join ':'
           Add-Content -Path $env:GITHUB_ENV -Value "WSLENV=$wslenv" -Encoding utf8
           
-          Write-Host "WSLENV configured for artifact uploads"
+          Write-Host "WSLENV configured: $wslenv"
       
       - name: Create virtual ext4 filesystem on D drive
         shell: wsl-bash -u root {0}
@@ -179,7 +180,17 @@ jobs:
           export INPUT_ARCH="${{ inputs.arch }}"
           export INPUT_BUILD_TYPE="${{ inputs.build_type }}"
           export INPUT_ENV_CONFIG="${{ secrets.BRAVE_ENV_CONFIG }}"
-          export GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output}"
+          
+          # Convert Windows GITHUB_OUTPUT path to WSL path
+          if [ -n "$GITHUB_OUTPUT" ]; then
+            GITHUB_OUTPUT=$(wslpath -u "$GITHUB_OUTPUT")
+            export GITHUB_OUTPUT
+            echo "Using GITHUB_OUTPUT: $GITHUB_OUTPUT"
+          else
+            export GITHUB_OUTPUT="/tmp/github_output"
+            touch "$GITHUB_OUTPUT"
+          fi
+          
           export RUNNER_TEMP="${RUNNER_TEMP:-/tmp}"
           export HOME="/home/runner"
           export GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
