@@ -104,6 +104,9 @@ jobs:
           mkdir -p /home/runner/brave-build/workspace
           cp -r "$WINDOWS_WORKSPACE/." /home/runner/brave-build/workspace/
           
+          echo "Fixing line endings on shell scripts..."
+          find /home/runner/brave-build/workspace -type f \( -name "*.sh" -o -name "*.bash" \) -exec sed -i 's/\r$//' {} +
+          
           echo "Workspace copied successfully"
           ls -la /home/runner/brave-build/workspace
       
@@ -140,6 +143,51 @@ jobs:
           
           npm install
           echo "Dependencies installed successfully"
+      
+      - name: Test artifact upload from WSL
+        shell: wsl-bash {0}
+        run: |
+          set -e
+          
+          echo "Testing artifact upload capabilities..."
+          
+          # Check environment variables
+          echo "ACTIONS_RUNTIME_TOKEN: ${ACTIONS_RUNTIME_TOKEN:+SET}"
+          echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:+SET}"
+          echo "ACTIONS_CACHE_URL: ${ACTIONS_CACHE_URL:+SET}"
+          
+          # Create test file
+          mkdir -p /tmp/test-artifact
+          echo "WSL artifact upload test - Stage ${{ inputs.stage }}" > /tmp/test-artifact/test.txt
+          date >> /tmp/test-artifact/test.txt
+          
+          # Test upload using Node.js and @actions/artifact
+          cd /home/runner/brave-build/workspace/.github/actions/stage
+          
+          cat > /tmp/test-upload.js << 'EOF'
+          const {DefaultArtifactClient} = require('@actions/artifact');
+          const artifact = new DefaultArtifactClient();
+          
+          (async () => {
+            try {
+              console.log('Uploading test artifact...');
+              const result = await artifact.uploadArtifact(
+                'wsl-test-stage-${{ inputs.stage }}',
+                ['/tmp/test-artifact/test.txt'],
+                '/tmp/test-artifact',
+                { retentionDays: 1 }
+              );
+              console.log('✓ Test artifact uploaded successfully!');
+              console.log('Artifact ID:', result.id);
+            } catch (e) {
+              console.error('✗ Test artifact upload failed:', e.message);
+              process.exit(1);
+            }
+          })();
+          EOF
+          
+          node /tmp/test-upload.js
+          echo "✓ Artifact upload test passed"
       
       - name: Run build stage ${{ inputs.stage }} in WSL
         id: stage-container
