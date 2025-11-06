@@ -81,12 +81,23 @@ jobs:
       
       - name: Quick Test - Upload artifact from WSL using Node.js
         shell: wsl-bash {0}
+        env:
+          ACTIONS_RUNTIME_TOKEN: ${{ env.ACTIONS_RUNTIME_TOKEN }}
+          ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
+          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
+          ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
         run: |
           set -e
           echo "=== Testing Artifact Upload from WSL Node.js ==="
           
-          echo "Environment variables received in WSL bash:"
-          env | grep -E '^(ACTIONS|GITHUB|RUNNER)_' | sort || echo "No ACTIONS/GITHUB/RUNNER vars found"
+          # Explicitly export ACTIONS variables for Node.js
+          export ACTIONS_RUNTIME_TOKEN="${ACTIONS_RUNTIME_TOKEN}"
+          export ACTIONS_RUNTIME_URL="${ACTIONS_RUNTIME_URL}"
+          export ACTIONS_CACHE_URL="${ACTIONS_CACHE_URL}"
+          export ACTIONS_RESULTS_URL="${ACTIONS_RESULTS_URL}"
+          
+          echo "Environment variables after export:"
+          env | grep -E '^ACTIONS_' | sort
           
           # Create test file
           mkdir -p /tmp/wsl-node-test
@@ -241,8 +252,19 @@ jobs:
       - name: Run build stage ${{ inputs.stage }} in WSL
         id: stage-container
         shell: wsl-bash {0}
+        env:
+          ACTIONS_RUNTIME_TOKEN: ${{ env.ACTIONS_RUNTIME_TOKEN }}
+          ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
+          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
+          ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
         run: |
           set -e
+          
+          # Export ACTIONS variables for artifact uploads
+          export ACTIONS_RUNTIME_TOKEN="${ACTIONS_RUNTIME_TOKEN}"
+          export ACTIONS_RUNTIME_URL="${ACTIONS_RUNTIME_URL}"
+          export ACTIONS_CACHE_URL="${ACTIONS_CACHE_URL}"
+          export ACTIONS_RESULTS_URL="${ACTIONS_RESULTS_URL}"
           
           # Set workspace and environment
           export GITHUB_WORKSPACE="/home/runner/brave-build/workspace"
@@ -258,8 +280,8 @@ jobs:
           export GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
           
           echo "Using native workspace: $GITHUB_WORKSPACE"
+          echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:0:50}..."
           echo "Starting build stage ${{ inputs.stage }}..."
-          echo "Note: ACTIONS_RUNTIME_* variables are injected by GitHub Actions runner"
           
           cd "$GITHUB_WORKSPACE/.github/actions/stage" || exit 1
           node src/main.js
