@@ -67,32 +67,32 @@ jobs:
       
       - name: Test artifact upload from WSL (quick validation)
         shell: powershell
-        env:
-          ACTIONS_RUNTIME_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
-          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
-          ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
-          GITHUB_RUN_NUMBER: ${{ github.run_number }}
-          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          # Set WSLENV to pass environment variables to WSL
-          $env:WSLENV = "ACTIONS_RUNTIME_TOKEN/u:ACTIONS_RUNTIME_URL/u:ACTIONS_CACHE_URL/u:ACTIONS_RESULTS_URL/u:GITHUB_RUN_ID/u:GITHUB_RUN_NUMBER/u:GITHUB_RUN_ATTEMPT/u:GITHUB_REPOSITORY/u"
+          # Create env file with Unix line endings
+          $envVars = @"
+          export ACTIONS_RUNTIME_TOKEN='${{ secrets.GITHUB_TOKEN }}'
+          export ACTIONS_RUNTIME_URL='${{ env.ACTIONS_RUNTIME_URL }}'
+          export ACTIONS_CACHE_URL='${{ env.ACTIONS_CACHE_URL }}'
+          export ACTIONS_RESULTS_URL='${{ env.ACTIONS_RESULTS_URL }}'
+          export GITHUB_RUN_ID='${{ github.run_id }}'
+          export GITHUB_RUN_NUMBER='${{ github.run_number }}'
+          export GITHUB_RUN_ATTEMPT='${{ github.run_attempt }}'
+          export GITHUB_REPOSITORY='${{ github.repository }}'
+          "@
+          [System.IO.File]::WriteAllText("$env:TEMP\wsl-env.sh", $envVars.Replace("`r`n", "`n"))
           
-          # Create temp script with Unix line endings
+          # Create test script
           $script = @"
           set -e
+          source /tmp/wsl-env.sh
           echo '=== Quick artifact upload validation ==='
           echo 'ACTIONS_RUNTIME_TOKEN: `${ACTIONS_RUNTIME_TOKEN:+SET}'
           echo 'ACTIONS_RUNTIME_URL: `${ACTIONS_RUNTIME_URL:+SET}'
-          echo 'ACTIONS_CACHE_URL: `${ACTIONS_CACHE_URL:+SET}'
           apt-get update -qq
           DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl
           curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
           apt-get install -y -qq nodejs
-          mkdir -p /tmp/artifact-test
-          cd /tmp/artifact-test
+          mkdir -p /tmp/artifact-test && cd /tmp/artifact-test
           npm init -y > /dev/null 2>&1
           npm install @actions/artifact@2.2.1 > /dev/null 2>&1
           echo 'WSL artifact upload test' > test.txt
@@ -101,26 +101,21 @@ jobs:
           const artifact = new DefaultArtifactClient();
           (async () => {
             try {
-              console.log('Testing artifact upload...');
               const result = await artifact.uploadArtifact('wsl-quick-test', ['/tmp/artifact-test/test.txt'], '/tmp/artifact-test', { retentionDays: 1 });
               console.log('✓ Artifact upload works!');
             } catch (e) {
-              console.error('✗ Artifact upload failed:', e.message);
+              console.error('✗ Failed:', e.message);
               process.exit(1);
             }
           })();
           JSEOF
           node test-upload.js
-          echo '✓ Validation passed - proceeding with build setup'
           "@
+          [System.IO.File]::WriteAllText("$env:TEMP\wsl-test.sh", $script.Replace("`r`n", "`n"))
           
-          # Write with Unix line endings
-          $tempScript = "$env:TEMP\wsl-test.sh"
-          [System.IO.File]::WriteAllText($tempScript, $script.Replace("`r`n", "`n"))
-          
-          # Convert Windows path to WSL path and execute
-          $wslPath = wsl wslpath -u $tempScript
-          wsl bash $wslPath
+          # Copy env file to WSL and run script
+          wsl cp /mnt/c/Users/runneradmin/AppData/Local/Temp/wsl-env.sh /tmp/
+          wsl bash (wsl wslpath -u "$env:TEMP\wsl-test.sh")
       
       - name: Create runner user and ext4 filesystem on D drive
         shell: wsl-bash -u root {0}
@@ -204,34 +199,34 @@ jobs:
       - name: Run build stage ${{ inputs.stage }} in WSL
         id: stage-container
         shell: powershell
-        env:
-          ACTIONS_RUNTIME_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
-          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
-          ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
-          GITHUB_RUN_NUMBER: ${{ github.run_number }}
-          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_SHA: ${{ github.sha }}
-          GITHUB_REF: ${{ github.ref }}
-          GITHUB_ACTOR: ${{ github.actor }}
-          INPUT_FINISHED: ${{ inputs.finished }}
-          INPUT_FROM_ARTIFACT: ${{ inputs.from_artifact }}
-          INPUT_PLATFORM: ${{ inputs.platform }}
-          INPUT_ARCH: ${{ inputs.arch }}
-          INPUT_BUILD_TYPE: ${{ inputs.build_type }}
-          INPUT_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
         run: |
-          # Set WSLENV to pass all necessary environment variables to WSL
-          $env:WSLENV = "ACTIONS_RUNTIME_TOKEN/u:ACTIONS_RUNTIME_URL/u:ACTIONS_CACHE_URL/u:ACTIONS_RESULTS_URL/u:GITHUB_RUN_ID/u:GITHUB_RUN_NUMBER/u:GITHUB_RUN_ATTEMPT/u:GITHUB_REPOSITORY/u:GITHUB_SHA/u:GITHUB_REF/u:GITHUB_ACTOR/u:INPUT_FINISHED/u:INPUT_FROM_ARTIFACT/u:INPUT_PLATFORM/u:INPUT_ARCH/u:INPUT_BUILD_TYPE/u:INPUT_ENV_CONFIG/u"
+          # Create env file
+          $envVars = @"
+          export ACTIONS_RUNTIME_TOKEN='${{ secrets.GITHUB_TOKEN }}'
+          export ACTIONS_RUNTIME_URL='${{ env.ACTIONS_RUNTIME_URL }}'
+          export ACTIONS_CACHE_URL='${{ env.ACTIONS_CACHE_URL }}'
+          export ACTIONS_RESULTS_URL='${{ env.ACTIONS_RESULTS_URL }}'
+          export GITHUB_RUN_ID='${{ github.run_id }}'
+          export GITHUB_RUN_NUMBER='${{ github.run_number }}'
+          export GITHUB_RUN_ATTEMPT='${{ github.run_attempt }}'
+          export GITHUB_REPOSITORY='${{ github.repository }}'
+          export GITHUB_SHA='${{ github.sha }}'
+          export GITHUB_REF='${{ github.ref }}'
+          export GITHUB_ACTOR='${{ github.actor }}'
+          export INPUT_FINISHED='${{ inputs.finished }}'
+          export INPUT_FROM_ARTIFACT='${{ inputs.from_artifact }}'
+          export INPUT_PLATFORM='${{ inputs.platform }}'
+          export INPUT_ARCH='${{ inputs.arch }}'
+          export INPUT_BUILD_TYPE='${{ inputs.build_type }}'
+          export INPUT_ENV_CONFIG='${{ secrets.BRAVE_ENV_CONFIG }}'
+          "@
+          [System.IO.File]::WriteAllText("$env:TEMP\wsl-build-env.sh", $envVars.Replace("`r`n", "`n"))
           
-          # Create build script with Unix line endings
+          # Create build script
           $buildScript = @"
           set -e
-          echo 'Preparing environment for runner user...'
+          source /tmp/wsl-build-env.sh
           echo 'ACTIONS_RUNTIME_TOKEN: `${ACTIONS_RUNTIME_TOKEN:+SET}'
-          echo 'ACTIONS_RUNTIME_URL: `${ACTIONS_RUNTIME_URL:+SET}'
           sudo -E -u runner bash << 'RUNNERSCRIPT'
           set -e
           export GITHUB_WORKSPACE='/home/runner/brave-build/workspace'
@@ -239,22 +234,16 @@ jobs:
           export RUNNER_TEMP='`${RUNNER_TEMP:-/tmp}'
           export HOME='/home/runner'
           export GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
-          echo 'Running as user: `$(whoami)'
-          echo 'Using native workspace: `$GITHUB_WORKSPACE'
-          echo 'ACTIONS_RUNTIME_TOKEN available: `${ACTIONS_RUNTIME_TOKEN:+YES}'
-          echo 'Starting build stage...'
+          echo 'Running as: `$(whoami)'
           cd "`$GITHUB_WORKSPACE/.github/actions/stage" || exit 1
           node src/main.js
           RUNNERSCRIPT
           "@
+          [System.IO.File]::WriteAllText("$env:TEMP\wsl-build.sh", $buildScript.Replace("`r`n", "`n"))
           
-          # Write with Unix line endings
-          $tempBuildScript = "$env:TEMP\wsl-build.sh"
-          [System.IO.File]::WriteAllText($tempBuildScript, $buildScript.Replace("`r`n", "`n"))
-          
-          # Convert Windows path to WSL path and execute
-          $wslBuildPath = wsl wslpath -u $tempBuildScript
-          wsl bash $wslBuildPath
+          # Copy env file and run
+          wsl cp /mnt/c/Users/runneradmin/AppData/Local/Temp/wsl-build-env.sh /tmp/
+          wsl bash (wsl wslpath -u "$env:TEMP\wsl-build.sh")
       
       - name: Show disk usage
         if: always()
