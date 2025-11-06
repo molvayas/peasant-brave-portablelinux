@@ -66,20 +66,20 @@ jobs:
           wsl-shell-user: runner
           update: 'true'
       
-      - name: Quick Test - Create test file in WSL
+      - name: Quick Test - Create test file in WSL on D drive (accessible from Windows)
         shell: wsl-bash {0}
         run: |
-          mkdir -p /tmp/artifact-test-wsl
-          echo "Test from WSL - Stage ${{ inputs.stage }}" > /tmp/artifact-test-wsl/test-wsl.txt
-          echo "Build: ${{ github.run_number }}" >> /tmp/artifact-test-wsl/test-wsl.txt
-          date >> /tmp/artifact-test-wsl/test-wsl.txt
-          cat /tmp/artifact-test-wsl/test-wsl.txt
+          mkdir -p /mnt/d/artifact-test-wsl
+          echo "Test from WSL - Stage ${{ inputs.stage }}" > /mnt/d/artifact-test-wsl/test-wsl.txt
+          echo "Build: ${{ github.run_number }}" >> /mnt/d/artifact-test-wsl/test-wsl.txt
+          date >> /mnt/d/artifact-test-wsl/test-wsl.txt
+          cat /mnt/d/artifact-test-wsl/test-wsl.txt
       
-      - name: Quick Test - Upload from WSL using native upload-artifact action
+      - name: Quick Test - Upload from WSL D drive using native action
         uses: actions/upload-artifact@v4
         with:
           name: test-from-wsl-stage-${{ inputs.stage }}
-          path: /tmp/artifact-test-wsl/test-wsl.txt
+          path: D:\artifact-test-wsl\test-wsl.txt
           retention-days: 1
           compression-level: 0
       
