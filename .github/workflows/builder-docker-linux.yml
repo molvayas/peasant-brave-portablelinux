@@ -58,76 +58,58 @@ jobs:
           Write-Host ""
           Write-Host "No cleanup needed - Windows D drive has plenty of space!" -ForegroundColor Green
       
+      - name: Capture GitHub Actions environment
+        shell: powershell
+        run: |
+          $envFile = "D:\github-actions.env"
+          
+          $content = @"
+          export ACTIONS_RUNTIME_TOKEN='$env:ACTIONS_RUNTIME_TOKEN'
+          export ACTIONS_RUNTIME_URL='$env:ACTIONS_RUNTIME_URL'
+          export ACTIONS_CACHE_URL='$env:ACTIONS_CACHE_URL'
+          export ACTIONS_RESULTS_URL='$env:ACTIONS_RESULTS_URL'
+          export GITHUB_RUN_ID='${{ github.run_id }}'
+          export GITHUB_RUN_NUMBER='${{ github.run_number }}'
+          export GITHUB_RUN_ATTEMPT='${{ github.run_attempt }}'
+          export GITHUB_REPOSITORY='${{ github.repository }}'
+          export GITHUB_SHA='${{ github.sha }}'
+          export GITHUB_REF='${{ github.ref }}'
+          export GITHUB_ACTOR='${{ github.actor }}'
+          export GITHUB_WORKFLOW='${{ github.workflow }}'
+          export GITHUB_ACTION='${{ github.action }}'
+          export GITHUB_EVENT_NAME='${{ github.event_name }}'
+          "@
+          
+          [System.IO.File]::WriteAllText($envFile, $content)
+          
+          Write-Host "GitHub Actions environment captured"
+          Write-Host "ACTIONS_RUNTIME_URL: $($env:ACTIONS_RUNTIME_URL.Substring(0,50))..."
+      
       - name: Setup WSL Ubuntu
         uses: Vampire/setup-wsl@v6
         with:
           distribution: Ubuntu-22.04
           set-as-default: 'true'
+          wsl-shell-user: runner
           update: 'true'
       
-      - name: Test artifact upload from WSL (quick validation)
-        shell: powershell
-        run: |
-          # Create env file with Unix line endings
-          $envVars = @"
-          export ACTIONS_RUNTIME_TOKEN='${{ secrets.GITHUB_TOKEN }}'
-          export ACTIONS_RUNTIME_URL='${{ env.ACTIONS_RUNTIME_URL }}'
-          export ACTIONS_CACHE_URL='${{ env.ACTIONS_CACHE_URL }}'
-          export ACTIONS_RESULTS_URL='${{ env.ACTIONS_RESULTS_URL }}'
-          export GITHUB_RUN_ID='${{ github.run_id }}'
-          export GITHUB_RUN_NUMBER='${{ github.run_number }}'
-          export GITHUB_RUN_ATTEMPT='${{ github.run_attempt }}'
-          export GITHUB_REPOSITORY='${{ github.repository }}'
-          "@
-          [System.IO.File]::WriteAllText("$env:TEMP\wsl-env.sh", $envVars.Replace("`r`n", "`n"))
-          
-          # Create test script
-          $script = @"
-          set -e
-          source /tmp/wsl-env.sh
-          echo '=== Quick artifact upload validation ==='
-          echo 'ACTIONS_RUNTIME_TOKEN: `${ACTIONS_RUNTIME_TOKEN:+SET}'
-          echo 'ACTIONS_RUNTIME_URL: `${ACTIONS_RUNTIME_URL:+SET}'
-          apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl
-          curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
-          apt-get install -y -qq nodejs
-          mkdir -p /tmp/artifact-test && cd /tmp/artifact-test
-          npm init -y > /dev/null 2>&1
-          npm install @actions/artifact@2.2.1 > /dev/null 2>&1
-          echo 'WSL artifact upload test' > test.txt
-          cat > test-upload.js << 'JSEOF'
-          const {DefaultArtifactClient} = require('@actions/artifact');
-          const artifact = new DefaultArtifactClient();
-          (async () => {
-            try {
-              const result = await artifact.uploadArtifact('wsl-quick-test', ['/tmp/artifact-test/test.txt'], '/tmp/artifact-test', { retentionDays: 1 });
-              console.log('✓ Artifact upload works!');
-            } catch (e) {
-              console.error('✗ Failed:', e.message);
-              process.exit(1);
-            }
-          })();
-          JSEOF
-          node test-upload.js
-          "@
-          [System.IO.File]::WriteAllText("$env:TEMP\wsl-test.sh", $script.Replace("`r`n", "`n"))
-          
-          # Copy env file to WSL and run script
-          wsl cp /mnt/c/Users/runneradmin/AppData/Local/Temp/wsl-env.sh /tmp/
-          wsl bash (wsl wslpath -u "$env:TEMP\wsl-test.sh")
-      
-      - name: Create runner user and ext4 filesystem on D drive
+      - name: Copy environment to WSL
         shell: wsl-bash -u root {0}
         run: |
           set -e
           
-          echo "Creating runner user..."
-          useradd -m -s /bin/bash runner || echo "User already exists"
+          # Copy environment file to /tmp (accessible by all users)
+          cp /mnt/d/github-actions.env /tmp/github-actions.env
+          chmod 644 /tmp/github-actions.env
           
-          echo "Configuring passwordless sudo for runner user..."
-          echo "runner ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/runner
-          chmod 440 /etc/sudoers.d/runner
+          echo "Environment file copied to /tmp/github-actions.env"
+          echo "First 3 lines:"
+          head -n 3 /tmp/github-actions.env
+      
+      - name: Create virtual ext4 filesystem on D drive
+        shell: wsl-bash -u root {0}
+        run: |
+          set -e
           
           echo "Creating 140GB virtual disk on D drive (sparse file)..."
           mkdir -p /mnt/d/wsl-vhd
@@ -140,8 +122,12 @@ jobs:
           mkdir -p /home/runner/brave-build
           mount -o loop /mnt/d/wsl-vhd/brave-build.ext4 /home/runner/brave-build
           
-          echo "Setting ownership..."
+          echo "Setting ownership for runner user..."
           chown -R runner:runner /home/runner/brave-build
+          
+          echo "Configuring passwordless sudo for runner user..."
+          echo "runner ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/runner
+          chmod 440 /etc/sudoers.d/runner
           
           echo "Native ext4 filesystem ready:"
           df -h /home/runner/brave-build
@@ -191,59 +177,79 @@ jobs:
         run: |
           set -e
           
-          # Work from native filesystem as runner user
+          # Work from native filesystem
           echo "Installing npm dependencies in native filesystem..."
-          sudo -u runner bash -c 'cd /home/runner/brave-build/workspace/.github/actions/stage && npm install'
+          cd /home/runner/brave-build/workspace/.github/actions/stage || { echo "ERROR: Cannot find action directory"; exit 1; }
+          
+          npm install
           echo "Dependencies installed successfully"
+      
+      - name: Test artifact upload from WSL
+        shell: wsl-bash {0}
+        run: |
+          set -e
+          
+          # Source GitHub Actions environment
+          source /tmp/github-actions.env
+          
+          # Create a test file
+          mkdir -p /tmp/test-artifact
+          echo "Artifact upload test from WSL - Stage ${{ inputs.stage }}" > /tmp/test-artifact/test.txt
+          echo "Build: ${{ github.run_number }}" >> /tmp/test-artifact/test.txt
+          date >> /tmp/test-artifact/test.txt
+          
+          echo "Test file created:"
+          cat /tmp/test-artifact/test.txt
+          
+          # Test artifact upload using Node.js
+          cd /home/runner/brave-build/workspace/.github/actions/stage
+          node -e "
+          const {DefaultArtifactClient} = require('@actions/artifact');
+          (async () => {
+            const artifact = new DefaultArtifactClient();
+            await artifact.uploadArtifact(
+              'wsl-test-stage-${{ inputs.stage }}',
+              ['/tmp/test-artifact/test.txt'],
+              '/tmp/test-artifact',
+              {retentionDays: 1}
+            );
+            console.log('✓ Artifact uploaded successfully from WSL!');
+          })();
+          "
       
       - name: Run build stage ${{ inputs.stage }} in WSL
         id: stage-container
-        shell: powershell
+        shell: wsl-bash {0}
         run: |
-          # Create env file
-          $envVars = @"
-          export ACTIONS_RUNTIME_TOKEN='${{ secrets.GITHUB_TOKEN }}'
-          export ACTIONS_RUNTIME_URL='${{ env.ACTIONS_RUNTIME_URL }}'
-          export ACTIONS_CACHE_URL='${{ env.ACTIONS_CACHE_URL }}'
-          export ACTIONS_RESULTS_URL='${{ env.ACTIONS_RESULTS_URL }}'
-          export GITHUB_RUN_ID='${{ github.run_id }}'
-          export GITHUB_RUN_NUMBER='${{ github.run_number }}'
-          export GITHUB_RUN_ATTEMPT='${{ github.run_attempt }}'
-          export GITHUB_REPOSITORY='${{ github.repository }}'
-          export GITHUB_SHA='${{ github.sha }}'
-          export GITHUB_REF='${{ github.ref }}'
-          export GITHUB_ACTOR='${{ github.actor }}'
-          export INPUT_FINISHED='${{ inputs.finished }}'
-          export INPUT_FROM_ARTIFACT='${{ inputs.from_artifact }}'
-          export INPUT_PLATFORM='${{ inputs.platform }}'
-          export INPUT_ARCH='${{ inputs.arch }}'
-          export INPUT_BUILD_TYPE='${{ inputs.build_type }}'
-          export INPUT_ENV_CONFIG='${{ secrets.BRAVE_ENV_CONFIG }}'
-          "@
-          [System.IO.File]::WriteAllText("$env:TEMP\wsl-build-env.sh", $envVars.Replace("`r`n", "`n"))
+          set -e
           
-          # Create build script
-          $buildScript = @"
-          set -e
-          source /tmp/wsl-build-env.sh
-          echo 'ACTIONS_RUNTIME_TOKEN: `${ACTIONS_RUNTIME_TOKEN:+SET}'
-          sudo -E -u runner bash << 'RUNNERSCRIPT'
-          set -e
-          export GITHUB_WORKSPACE='/home/runner/brave-build/workspace'
-          export GITHUB_OUTPUT='`${GITHUB_OUTPUT:-/tmp/github_output}'
-          export RUNNER_TEMP='`${RUNNER_TEMP:-/tmp}'
-          export HOME='/home/runner'
+          # Source GitHub Actions environment (for artifact uploads)
+          echo "Loading GitHub Actions environment..."
+          source /tmp/github-actions.env
+          
+          # Set workspace path
+          export GITHUB_WORKSPACE="/home/runner/brave-build/workspace"
+          
+          # Action inputs (must have INPUT_ prefix for @actions/core)
+          export INPUT_FINISHED="${{ inputs.finished }}"
+          export INPUT_FROM_ARTIFACT="${{ inputs.from_artifact }}"
+          export INPUT_PLATFORM="${{ inputs.platform }}"
+          export INPUT_ARCH="${{ inputs.arch }}"
+          export INPUT_BUILD_TYPE="${{ inputs.build_type }}"
+          export INPUT_ENV_CONFIG="${{ secrets.BRAVE_ENV_CONFIG }}"
+          
+          # GitHub context variables
+          export GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output}"
+          export RUNNER_TEMP="${RUNNER_TEMP:-/tmp}"
+          export HOME="/home/runner"
           export GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
-          echo 'Running as: `$(whoami)'
-          cd "`$GITHUB_WORKSPACE/.github/actions/stage" || exit 1
-          node src/main.js
-          RUNNERSCRIPT
-          "@
-          [System.IO.File]::WriteAllText("$env:TEMP\wsl-build.sh", $buildScript.Replace("`r`n", "`n"))
           
-          # Copy env file and run
-          wsl cp /mnt/c/Users/runneradmin/AppData/Local/Temp/wsl-build-env.sh /tmp/
-          wsl bash (wsl wslpath -u "$env:TEMP\wsl-build.sh")
+          echo "Using native workspace: $GITHUB_WORKSPACE"
+          echo "ACTIONS_RUNTIME_URL loaded: ${ACTIONS_RUNTIME_URL:0:50}..."
+          echo "Starting build stage ${{ inputs.stage }}..."
+          
+          cd "$GITHUB_WORKSPACE/.github/actions/stage" || exit 1
+          node src/main.js
       
       - name: Show disk usage
         if: always()
