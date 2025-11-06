@@ -69,6 +69,22 @@ jobs:
       - name: Expose GitHub Runtime variables
         uses: crazy-max/ghaction-github-runtime@v3
       
+      - name: Configure WSLENV for ACTIONS variables
+        shell: powershell
+        run: |
+          # Configure WSLENV to pass ACTIONS_* variables to WSL
+          $wslenvVars = @(
+            'ACTIONS_RUNTIME_TOKEN/u',
+            'ACTIONS_RUNTIME_URL/u', 
+            'ACTIONS_CACHE_URL/u',
+            'ACTIONS_RESULTS_URL/u',
+            'ACTIONS_CACHE_SERVICE_V2/u'
+          )
+          $wslenv = $wslenvVars -join ':'
+          Add-Content -Path $env:GITHUB_ENV -Value "WSLENV=$wslenv" -Encoding utf8
+          
+          Write-Host "WSLENV configured: $wslenv"
+      
       - name: Quick Test - Install Node.js in WSL and test artifact upload
         shell: wsl-bash -u root {0}
         run: |
@@ -81,22 +97,11 @@ jobs:
       
       - name: Quick Test - Upload artifact from WSL using Node.js
         shell: wsl-bash {0}
-        env:
-          ACTIONS_RUNTIME_TOKEN: ${{ env.ACTIONS_RUNTIME_TOKEN }}
-          ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
-          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
-          ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
         run: |
           set -e
           echo "=== Testing Artifact Upload from WSL Node.js ==="
           
-          # Explicitly export ACTIONS variables for Node.js
-          export ACTIONS_RUNTIME_TOKEN="${ACTIONS_RUNTIME_TOKEN}"
-          export ACTIONS_RUNTIME_URL="${ACTIONS_RUNTIME_URL}"
-          export ACTIONS_CACHE_URL="${ACTIONS_CACHE_URL}"
-          export ACTIONS_RESULTS_URL="${ACTIONS_RESULTS_URL}"
-          
-          echo "Environment variables after export:"
+          echo "Environment variables passed via WSLENV:"
           env | grep -E '^ACTIONS_' | sort
           
           # Create test file
@@ -252,19 +257,10 @@ jobs:
       - name: Run build stage ${{ inputs.stage }} in WSL
         id: stage-container
         shell: wsl-bash {0}
-        env:
-          ACTIONS_RUNTIME_TOKEN: ${{ env.ACTIONS_RUNTIME_TOKEN }}
-          ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
-          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
-          ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
         run: |
           set -e
           
-          # Export ACTIONS variables for artifact uploads
-          export ACTIONS_RUNTIME_TOKEN="${ACTIONS_RUNTIME_TOKEN}"
-          export ACTIONS_RUNTIME_URL="${ACTIONS_RUNTIME_URL}"
-          export ACTIONS_CACHE_URL="${ACTIONS_CACHE_URL}"
-          export ACTIONS_RESULTS_URL="${ACTIONS_RESULTS_URL}"
+          # ACTIONS_* variables are automatically passed via WSLENV
           
           # Set workspace and environment
           export GITHUB_WORKSPACE="/home/runner/brave-build/workspace"
