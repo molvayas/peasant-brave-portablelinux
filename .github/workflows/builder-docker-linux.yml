@@ -58,40 +58,50 @@ jobs:
           Write-Host ""
           Write-Host "No cleanup needed - Windows D drive has plenty of space!" -ForegroundColor Green
       
-      - name: Capture GitHub Actions environment
+      - name: Capture GitHub Actions environment using Node
         shell: powershell
         run: |
-          $envFile = "D:\github-actions.env"
+          # Use Node.js to access environment variables that aren't exposed to PowerShell
+          node -e "
+          const fs = require('fs');
+          const envVars = [
+            'ACTIONS_RUNTIME_TOKEN',
+            'ACTIONS_RUNTIME_URL',
+            'ACTIONS_CACHE_URL',
+            'ACTIONS_RESULTS_URL',
+            'GITHUB_RUN_ID',
+            'GITHUB_RUN_NUMBER',
+            'GITHUB_RUN_ATTEMPT',
+            'GITHUB_REPOSITORY',
+            'GITHUB_SHA',
+            'GITHUB_REF',
+            'GITHUB_ACTOR',
+            'GITHUB_WORKFLOW',
+            'GITHUB_ACTION',
+            'GITHUB_EVENT_NAME',
+            'GITHUB_WORKSPACE'
+          ];
           
-          # Get all environment variables that start with ACTIONS_ or GITHUB_
-          Write-Host "=== Looking for GitHub Actions environment variables ==="
-          $actionsVars = Get-ChildItem env: | Where-Object { $_.Name -like "ACTIONS_*" -or $_.Name -like "GITHUB_*" }
+          console.log('=== Capturing environment variables ===');
+          const exports = envVars
+            .filter(key => process.env[key])
+            .map(key => {
+              const value = process.env[key];
+              if (key.includes('TOKEN') || key.includes('URL')) {
+                console.log(key + ': ' + (value ? value.substring(0, 30) + '...' : 'NOT SET'));
+              } else {
+                console.log(key + ': ' + value);
+              }
+              return 'export ' + key + '=' + JSON.stringify(value);
+            });
           
-          Write-Host "Found $($actionsVars.Count) variables:"
-          $actionsVars | ForEach-Object { Write-Host "  $($_.Name)" }
+          const content = exports.join('\n');
+          fs.writeFileSync('D:\\\\github-actions.env', content);
+          console.log('\n✓ Environment file created with ' + exports.length + ' variables');
+          "
           
-          # Build export statements
-          $exports = @()
-          $actionsVars | ForEach-Object {
-            $exports += "export $($_.Name)='$($_.Value)'"
-          }
-          
-          # Add context variables from workflow
-          $exports += "export GITHUB_RUN_ID='${{ github.run_id }}'"
-          $exports += "export GITHUB_RUN_NUMBER='${{ github.run_number }}'"
-          $exports += "export GITHUB_RUN_ATTEMPT='${{ github.run_attempt }}'"
-          $exports += "export GITHUB_REPOSITORY='${{ github.repository }}'"
-          $exports += "export GITHUB_SHA='${{ github.sha }}'"
-          $exports += "export GITHUB_REF='${{ github.ref }}'"
-          $exports += "export GITHUB_ACTOR='${{ github.actor }}'"
-          $exports += "export GITHUB_WORKFLOW='${{ github.workflow }}'"
-          
-          $content = $exports -join "`n"
-          [System.IO.File]::WriteAllText($envFile, $content)
-          
-          Write-Host "`n=== Environment file created ==="
-          Write-Host "First 5 lines:"
-          Get-Content $envFile | Select-Object -First 5
+          Write-Host "`nVerifying file:"
+          Get-Content "D:\github-actions.env" | Select-Object -First 5
       
       - name: Setup WSL Ubuntu
         uses: Vampire/setup-wsl@v6
