@@ -58,51 +58,6 @@ jobs:
           Write-Host ""
           Write-Host "No cleanup needed - Windows D drive has plenty of space!" -ForegroundColor Green
       
-      - name: Capture GitHub Actions environment using Node
-        shell: powershell
-        run: |
-          # Use Node.js to access environment variables that aren't exposed to PowerShell
-          node -e "
-          const fs = require('fs');
-          const envVars = [
-            'ACTIONS_RUNTIME_TOKEN',
-            'ACTIONS_RUNTIME_URL',
-            'ACTIONS_CACHE_URL',
-            'ACTIONS_RESULTS_URL',
-            'GITHUB_RUN_ID',
-            'GITHUB_RUN_NUMBER',
-            'GITHUB_RUN_ATTEMPT',
-            'GITHUB_REPOSITORY',
-            'GITHUB_SHA',
-            'GITHUB_REF',
-            'GITHUB_ACTOR',
-            'GITHUB_WORKFLOW',
-            'GITHUB_ACTION',
-            'GITHUB_EVENT_NAME',
-            'GITHUB_WORKSPACE'
-          ];
-          
-          console.log('=== Capturing environment variables ===');
-          const exports = envVars
-            .filter(key => process.env[key])
-            .map(key => {
-              const value = process.env[key];
-              if (key.includes('TOKEN') || key.includes('URL')) {
-                console.log(key + ': ' + (value ? value.substring(0, 30) + '...' : 'NOT SET'));
-              } else {
-                console.log(key + ': ' + value);
-              }
-              return 'export ' + key + '=' + JSON.stringify(value);
-            });
-          
-          const content = exports.join('\n');
-          fs.writeFileSync('D:\\\\github-actions.env', content);
-          console.log('\n✓ Environment file created with ' + exports.length + ' variables');
-          "
-          
-          Write-Host "`nVerifying file:"
-          Get-Content "D:\github-actions.env" | Select-Object -First 5
-      
       - name: Setup WSL Ubuntu
         uses: Vampire/setup-wsl@v6
         with:
@@ -111,18 +66,32 @@ jobs:
           wsl-shell-user: runner
           update: 'true'
       
-      - name: Copy environment to WSL
-        shell: wsl-bash -u root {0}
+      - name: Capture GitHub Actions environment with WSLENV
+        shell: pwsh
         run: |
-          set -e
+          # Capture critical environment variables using Node.js
+          node -e "const fs=require('fs');const e=['ACTIONS_RUNTIME_TOKEN','ACTIONS_RUNTIME_URL','ACTIONS_CACHE_URL','ACTIONS_RESULTS_URL'];e.forEach(k=>{if(process.env[k]){console.log(k+': '+(k.includes('TOKEN')?'***':process.env[k].substring(0,40)+'...'));const v=process.env[k].replace(/'/g,\"'\\\\''");fs.appendFileSync(process.env.GITHUB_ENV,''+k+'='+v+'\n');}});console.log('Environment variables captured');"
           
-          # Copy environment file to /tmp (accessible by all users)
-          cp /mnt/d/github-actions.env /tmp/github-actions.env
-          chmod 644 /tmp/github-actions.env
+          # Configure WSLENV to pass all ACTIONS_* and GITHUB_* variables to WSL
+          $wslenvList = @(
+            'ACTIONS_RUNTIME_TOKEN/u',
+            'ACTIONS_RUNTIME_URL/u',
+            'ACTIONS_CACHE_URL/u',
+            'ACTIONS_RESULTS_URL/u',
+            'GITHUB_RUN_ID/u',
+            'GITHUB_RUN_NUMBER/u',
+            'GITHUB_RUN_ATTEMPT/u',
+            'GITHUB_REPOSITORY/u',
+            'GITHUB_SHA/u',
+            'GITHUB_REF/u',
+            'GITHUB_ACTOR/u',
+            'GITHUB_WORKFLOW/u',
+            'GITHUB_ACTION/u'
+          )
+          $wslenv = $wslenvList -join ':'
+          echo "WSLENV=$wslenv" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           
-          echo "Environment file copied to /tmp/github-actions.env"
-          echo "First 3 lines:"
-          head -n 3 /tmp/github-actions.env
+          Write-Host "WSLENV configured for variable passthrough"
       
       - name: Create virtual ext4 filesystem on D drive
         shell: wsl-bash -u root {0}
@@ -204,11 +173,17 @@ jobs:
       
       - name: Test artifact upload from WSL
         shell: wsl-bash {0}
+        env:
+          ACTIONS_RUNTIME_TOKEN: ${{ env.ACTIONS_RUNTIME_TOKEN }}
+          ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
+          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
+          ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
         run: |
           set -e
           
-          # Source GitHub Actions environment
-          source /tmp/github-actions.env
+          echo "=== Testing Artifact Upload from WSL ==="
+          echo "Checking environment variables:"
+          echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:0:40}..."
           
           # Create a test file
           mkdir -p /tmp/test-artifact
@@ -221,40 +196,27 @@ jobs:
           
           # Test artifact upload using Node.js
           cd /home/runner/brave-build/workspace/.github/actions/stage
-          node -e "
-          const {DefaultArtifactClient} = require('@actions/artifact');
-          (async () => {
-            const artifact = new DefaultArtifactClient();
-            await artifact.uploadArtifact(
-              'wsl-test-stage-${{ inputs.stage }}',
-              ['/tmp/test-artifact/test.txt'],
-              '/tmp/test-artifact',
-              {retentionDays: 1}
-            );
-            console.log('✓ Artifact uploaded successfully from WSL!');
-          })();
-          "
+          node -e "const {DefaultArtifactClient}=require('@actions/artifact');(async()=>{const a=new DefaultArtifactClient();await a.uploadArtifact('wsl-test-stage-${{ inputs.stage }}',['/tmp/test-artifact/test.txt'],'/tmp/test-artifact',{retentionDays:1});console.log('SUCCESS: Artifact uploaded from WSL');})();"
       
       - name: Run build stage ${{ inputs.stage }} in WSL
         id: stage-container
         shell: wsl-bash {0}
+        env:
+          ACTIONS_RUNTIME_TOKEN: ${{ env.ACTIONS_RUNTIME_TOKEN }}
+          ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
+          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
+          ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
+          INPUT_FINISHED: ${{ inputs.finished }}
+          INPUT_FROM_ARTIFACT: ${{ inputs.from_artifact }}
+          INPUT_PLATFORM: ${{ inputs.platform }}
+          INPUT_ARCH: ${{ inputs.arch }}
+          INPUT_BUILD_TYPE: ${{ inputs.build_type }}
+          INPUT_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
         run: |
           set -e
           
-          # Source GitHub Actions environment (for artifact uploads)
-          echo "Loading GitHub Actions environment..."
-          source /tmp/github-actions.env
-          
           # Set workspace path
           export GITHUB_WORKSPACE="/home/runner/brave-build/workspace"
-          
-          # Action inputs (must have INPUT_ prefix for @actions/core)
-          export INPUT_FINISHED="${{ inputs.finished }}"
-          export INPUT_FROM_ARTIFACT="${{ inputs.from_artifact }}"
-          export INPUT_PLATFORM="${{ inputs.platform }}"
-          export INPUT_ARCH="${{ inputs.arch }}"
-          export INPUT_BUILD_TYPE="${{ inputs.build_type }}"
-          export INPUT_ENV_CONFIG="${{ secrets.BRAVE_ENV_CONFIG }}"
           
           # GitHub context variables
           export GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output}"
@@ -263,7 +225,7 @@ jobs:
           export GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
           
           echo "Using native workspace: $GITHUB_WORKSPACE"
-          echo "ACTIONS_RUNTIME_URL loaded: ${ACTIONS_RUNTIME_URL:0:50}..."
+          echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:0:40}..."
           echo "Starting build stage ${{ inputs.stage }}..."
           
           cd "$GITHUB_WORKSPACE/.github/actions/stage" || exit 1
