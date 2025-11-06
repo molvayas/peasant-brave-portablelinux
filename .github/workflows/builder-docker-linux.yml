@@ -80,54 +80,47 @@ jobs:
           # Set WSLENV to pass environment variables to WSL
           $env:WSLENV = "ACTIONS_RUNTIME_TOKEN/u:ACTIONS_RUNTIME_URL/u:ACTIONS_CACHE_URL/u:ACTIONS_RESULTS_URL/u:GITHUB_RUN_ID/u:GITHUB_RUN_NUMBER/u:GITHUB_RUN_ATTEMPT/u:GITHUB_REPOSITORY/u"
           
-          wsl bash -c @'
+          # Create temp script with Unix line endings
+          $script = @"
           set -e
-          
-          echo "=== Quick artifact upload validation ==="
-          echo "ACTIONS_RUNTIME_TOKEN: ${ACTIONS_RUNTIME_TOKEN:+SET}"
-          echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:+SET}"
-          echo "ACTIONS_CACHE_URL: ${ACTIONS_CACHE_URL:+SET}"
-          
-          # Install minimal dependencies for test
+          echo '=== Quick artifact upload validation ==='
+          echo 'ACTIONS_RUNTIME_TOKEN: `${ACTIONS_RUNTIME_TOKEN:+SET}'
+          echo 'ACTIONS_RUNTIME_URL: `${ACTIONS_RUNTIME_URL:+SET}'
+          echo 'ACTIONS_CACHE_URL: `${ACTIONS_CACHE_URL:+SET}'
           apt-get update -qq
           DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl
           curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
           apt-get install -y -qq nodejs
-          
-          # Create test directory and install @actions/artifact
           mkdir -p /tmp/artifact-test
           cd /tmp/artifact-test
           npm init -y > /dev/null 2>&1
           npm install @actions/artifact@2.2.1 > /dev/null 2>&1
-          
-          # Create test file
-          echo "WSL artifact upload test" > test.txt
-          
-          # Test upload
-          cat > test-upload.js << 'EOF'
+          echo 'WSL artifact upload test' > test.txt
+          cat > test-upload.js << 'JSEOF'
           const {DefaultArtifactClient} = require('@actions/artifact');
           const artifact = new DefaultArtifactClient();
-          
           (async () => {
             try {
               console.log('Testing artifact upload...');
-              const result = await artifact.uploadArtifact(
-                'wsl-quick-test',
-                ['/tmp/artifact-test/test.txt'],
-                '/tmp/artifact-test',
-                { retentionDays: 1 }
-              );
+              const result = await artifact.uploadArtifact('wsl-quick-test', ['/tmp/artifact-test/test.txt'], '/tmp/artifact-test', { retentionDays: 1 });
               console.log('✓ Artifact upload works!');
             } catch (e) {
               console.error('✗ Artifact upload failed:', e.message);
               process.exit(1);
             }
           })();
-          EOF
-          
+          JSEOF
           node test-upload.js
-          echo "✓ Validation passed - proceeding with build setup"
-          '@
+          echo '✓ Validation passed - proceeding with build setup'
+          "@
+          
+          # Write with Unix line endings
+          $tempScript = "$env:TEMP\wsl-test.sh"
+          [System.IO.File]::WriteAllText($tempScript, $script.Replace("`r`n", "`n"))
+          
+          # Convert Windows path to WSL path and execute
+          $wslPath = wsl wslpath -u $tempScript
+          wsl bash $wslPath
       
       - name: Create runner user and ext4 filesystem on D drive
         shell: wsl-bash -u root {0}
@@ -233,33 +226,35 @@ jobs:
           # Set WSLENV to pass all necessary environment variables to WSL
           $env:WSLENV = "ACTIONS_RUNTIME_TOKEN/u:ACTIONS_RUNTIME_URL/u:ACTIONS_CACHE_URL/u:ACTIONS_RESULTS_URL/u:GITHUB_RUN_ID/u:GITHUB_RUN_NUMBER/u:GITHUB_RUN_ATTEMPT/u:GITHUB_REPOSITORY/u:GITHUB_SHA/u:GITHUB_REF/u:GITHUB_ACTOR/u:INPUT_FINISHED/u:INPUT_FROM_ARTIFACT/u:INPUT_PLATFORM/u:INPUT_ARCH/u:INPUT_BUILD_TYPE/u:INPUT_ENV_CONFIG/u"
           
-          wsl bash -c @'
+          # Create build script with Unix line endings
+          $buildScript = @"
           set -e
-          
-          echo "Preparing environment for runner user..."
-          echo "ACTIONS_RUNTIME_TOKEN: ${ACTIONS_RUNTIME_TOKEN:+SET}"
-          echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:+SET}"
-          
-          # Run as runner user with preserved environment
-          sudo -E -u runner bash << '"'"'RUNNERSCRIPT'"'"'
+          echo 'Preparing environment for runner user...'
+          echo 'ACTIONS_RUNTIME_TOKEN: `${ACTIONS_RUNTIME_TOKEN:+SET}'
+          echo 'ACTIONS_RUNTIME_URL: `${ACTIONS_RUNTIME_URL:+SET}'
+          sudo -E -u runner bash << 'RUNNERSCRIPT'
           set -e
-          
-          # Set workspace path and other variables
-          export GITHUB_WORKSPACE="/home/runner/brave-build/workspace"
-          export GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output}"
-          export RUNNER_TEMP="${RUNNER_TEMP:-/tmp}"
-          export HOME="/home/runner"
+          export GITHUB_WORKSPACE='/home/runner/brave-build/workspace'
+          export GITHUB_OUTPUT='`${GITHUB_OUTPUT:-/tmp/github_output}'
+          export RUNNER_TEMP='`${RUNNER_TEMP:-/tmp}'
+          export HOME='/home/runner'
           export GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
-          
-          echo "Running as user: $(whoami)"
-          echo "Using native workspace: $GITHUB_WORKSPACE"
-          echo "ACTIONS_RUNTIME_TOKEN available: ${ACTIONS_RUNTIME_TOKEN:+YES}"
-          echo "Starting build stage..."
-          
-          cd "$GITHUB_WORKSPACE/.github/actions/stage" || exit 1
+          echo 'Running as user: `$(whoami)'
+          echo 'Using native workspace: `$GITHUB_WORKSPACE'
+          echo 'ACTIONS_RUNTIME_TOKEN available: `${ACTIONS_RUNTIME_TOKEN:+YES}'
+          echo 'Starting build stage...'
+          cd "`$GITHUB_WORKSPACE/.github/actions/stage" || exit 1
           node src/main.js
           RUNNERSCRIPT
-          '@
+          "@
+          
+          # Write with Unix line endings
+          $tempBuildScript = "$env:TEMP\wsl-build.sh"
+          [System.IO.File]::WriteAllText($tempBuildScript, $buildScript.Replace("`r`n", "`n"))
+          
+          # Convert Windows path to WSL path and execute
+          $wslBuildPath = wsl wslpath -u $tempBuildScript
+          wsl bash $wslBuildPath
       
       - name: Show disk usage
         if: always()
