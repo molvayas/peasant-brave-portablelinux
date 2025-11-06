@@ -219,6 +219,10 @@ async function _createWrapperScript(wrapperPath, tempDir, artifactName, processe
     const actualScriptPath = path.join(SCRIPTS_DIR, 'next-volume.sh');
     
     const wrapper = `#!/bin/bash
+# Set locale to avoid "Illegal byte sequence" errors on macOS
+export LC_ALL=C
+export LANG=C
+
 # Wrapper script that calls the actual volume processing script with arguments
 exec "${actualScriptPath}" "${tempDir}" "${artifactName}" "${processedVolumesFile}" "${compressionLevel}" "${SCRIPTS_DIR}"
 `;
@@ -407,6 +411,10 @@ async function _createExtractionWrapperScript(wrapperPath, baseName, volumesDir,
     const envFilePath = path.join(tempDir, 'actions-env.sh');
     
     const wrapper = `#!/bin/bash
+# Set locale to avoid "Illegal byte sequence" errors on macOS
+export LC_ALL=C
+export LANG=C
+
 # Source environment variables
 if [ -f "${envFilePath}" ]; then
     source "${envFilePath}"
