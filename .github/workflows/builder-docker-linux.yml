@@ -146,6 +146,15 @@ jobs:
       
       - name: Test artifact upload from WSL
         shell: wsl-bash {0}
+        env:
+          ACTIONS_RUNTIME_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
+          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
+          ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           set -e
           
@@ -186,27 +195,35 @@ jobs:
           })();
           EOF
           
-          node /tmp/test-upload.js
+          NODE_PATH=/home/runner/brave-build/workspace/.github/actions/stage/node_modules node /tmp/test-upload.js
           echo "✓ Artifact upload test passed"
       
       - name: Run build stage ${{ inputs.stage }} in WSL
         id: stage-container
         shell: wsl-bash {0}
+        env:
+          ACTIONS_RUNTIME_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
+          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
+          ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          INPUT_FINISHED: ${{ inputs.finished }}
+          INPUT_FROM_ARTIFACT: ${{ inputs.from_artifact }}
+          INPUT_PLATFORM: ${{ inputs.platform }}
+          INPUT_ARCH: ${{ inputs.arch }}
+          INPUT_BUILD_TYPE: ${{ inputs.build_type }}
+          INPUT_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
         run: |
           set -e
           
-          # Set workspace path
+          # Set workspace path and other variables
           export GITHUB_WORKSPACE="/home/runner/brave-build/workspace"
-          
-          # Action inputs (must have INPUT_ prefix for @actions/core)
-          export INPUT_FINISHED="${{ inputs.finished }}"
-          export INPUT_FROM_ARTIFACT="${{ inputs.from_artifact }}"
-          export INPUT_PLATFORM="${{ inputs.platform }}"
-          export INPUT_ARCH="${{ inputs.arch }}"
-          export INPUT_BUILD_TYPE="${{ inputs.build_type }}"
-          export INPUT_ENV_CONFIG="${{ secrets.BRAVE_ENV_CONFIG }}"
-          
-          # GitHub context variables
           export GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output}"
           export RUNNER_TEMP="${RUNNER_TEMP:-/tmp}"
           export HOME="/home/runner"
