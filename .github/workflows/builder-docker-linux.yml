@@ -149,20 +149,62 @@ jobs:
           set -e
           echo "=== Quick Artifact Upload Test from WSL ==="
           
-          # Create test file
+          # Create test directory and file
           mkdir -p /tmp/quick-test
           echo "Quick test from WSL - Stage ${{ inputs.stage }}" > /tmp/quick-test/test.txt
           echo "Build: ${{ github.run_number }}" >> /tmp/quick-test/test.txt
-          date >> /tmp/quick-test/test.txt
+          echo "Timestamp: $(date)" >> /tmp/quick-test/test.txt
+          echo "ACTIONS_RUNTIME_URL from process.env: will be checked in Node" >> /tmp/quick-test/test.txt
           
-          echo "Installing @actions/artifact..."
+          echo "Test file created:"
+          cat /tmp/quick-test/test.txt
+          
+          # Create a test script that mimics the orchestrator
+          cat > /tmp/quick-test/test-upload.js << 'EOFJS'
+          const {DefaultArtifactClient} = require('@actions/artifact');
+          const fs = require('fs');
+          
+          (async () => {
+            try {
+              console.log('\n=== Checking Runtime Environment ===');
+              console.log('ACTIONS_RUNTIME_URL:', process.env.ACTIONS_RUNTIME_URL ? 'SET' : 'NOT SET');
+              console.log('ACTIONS_RUNTIME_TOKEN:', process.env.ACTIONS_RUNTIME_TOKEN ? 'SET (****)' : 'NOT SET');
+              console.log('ACTIONS_CACHE_URL:', process.env.ACTIONS_CACHE_URL ? 'SET' : 'NOT SET');
+              
+              console.log('\n=== Attempting Artifact Upload ===');
+              const artifact = new DefaultArtifactClient();
+              
+              const result = await artifact.uploadArtifact(
+                'wsl-quick-test-stage-${{ inputs.stage }}',
+                ['test.txt'],
+                '/tmp/quick-test',
+                {
+                  retentionDays: 1,
+                  compressionLevel: 0
+                }
+              );
+              
+              console.log('\nSUCCESS: Artifact uploaded from WSL!');
+              console.log('Artifact ID:', result.id);
+              console.log('Size:', result.size, 'bytes');
+            } catch (e) {
+              console.error('\nFAILED:', e.message);
+              console.error('Stack:', e.stack);
+              process.exit(1);
+            }
+          })();
+          EOFJS
+          
+          # Install dependencies and run test
           cd /tmp/quick-test
+          echo "Installing @actions/artifact..."
           npm init -y > /dev/null 2>&1
-          npm install @actions/artifact@2.2.1 --no-save > /dev/null 2>&1
+          npm install @actions/artifact@2.2.1 --no-save 2>&1 | grep -v "^npm"
           
-          echo "Attempting artifact upload..."
-          node -e "const {DefaultArtifactClient}=require('@actions/artifact');(async()=>{try{const a=new DefaultArtifactClient();await a.uploadArtifact('wsl-quick-test-${{ inputs.stage }}',['test.txt'],'/tmp/quick-test',{retentionDays:1});console.log('SUCCESS: Artifact uploaded from WSL!');}catch(e){console.log('FAILED: '+e.message);process.exit(0);}})();"
+          echo "Running upload test..."
+          node test-upload.js
           
+          echo ""
           echo "Test completed - proceeding with build"
       
       - name: Install action dependencies
