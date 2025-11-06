@@ -63,13 +63,78 @@ jobs:
         with:
           distribution: Ubuntu-22.04
           set-as-default: 'true'
-          wsl-shell-user: runner
           update: 'true'
       
-      - name: Create virtual ext4 filesystem on D drive
+      - name: Test artifact upload from WSL (quick validation)
+        shell: wsl-bash {0}
+        env:
+          ACTIONS_RUNTIME_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
+          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
+          ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -e
+          
+          echo "=== Quick artifact upload validation ==="
+          echo "ACTIONS_RUNTIME_TOKEN: ${ACTIONS_RUNTIME_TOKEN:+SET}"
+          echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:+SET}"
+          echo "ACTIONS_CACHE_URL: ${ACTIONS_CACHE_URL:+SET}"
+          
+          # Install minimal dependencies for test
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl
+          curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+          apt-get install -y -qq nodejs
+          
+          # Create test directory and install @actions/artifact
+          mkdir -p /tmp/artifact-test
+          cd /tmp/artifact-test
+          npm init -y > /dev/null 2>&1
+          npm install @actions/artifact@2.2.1 > /dev/null 2>&1
+          
+          # Create test file
+          echo "WSL artifact upload test" > test.txt
+          
+          # Test upload
+          cat > test-upload.js << 'EOF'
+          const {DefaultArtifactClient} = require('@actions/artifact');
+          const artifact = new DefaultArtifactClient();
+          
+          (async () => {
+            try {
+              console.log('Testing artifact upload...');
+              const result = await artifact.uploadArtifact(
+                'wsl-quick-test',
+                ['/tmp/artifact-test/test.txt'],
+                '/tmp/artifact-test',
+                { retentionDays: 1 }
+              );
+              console.log('✓ Artifact upload works!');
+            } catch (e) {
+              console.error('✗ Artifact upload failed:', e.message);
+              process.exit(1);
+            }
+          })();
+          EOF
+          
+          node test-upload.js
+          echo "✓ Validation passed - proceeding with build setup"
+      
+      - name: Create runner user and ext4 filesystem on D drive
         shell: wsl-bash -u root {0}
         run: |
           set -e
+          
+          echo "Creating runner user..."
+          useradd -m -s /bin/bash runner || echo "User already exists"
+          
+          echo "Configuring passwordless sudo for runner user..."
+          echo "runner ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/runner
+          chmod 440 /etc/sudoers.d/runner
           
           echo "Creating 140GB virtual disk on D drive (sparse file)..."
           mkdir -p /mnt/d/wsl-vhd
@@ -82,12 +147,8 @@ jobs:
           mkdir -p /home/runner/brave-build
           mount -o loop /mnt/d/wsl-vhd/brave-build.ext4 /home/runner/brave-build
           
-          echo "Setting ownership for runner user..."
+          echo "Setting ownership..."
           chown -R runner:runner /home/runner/brave-build
-          
-          echo "Configuring passwordless sudo for runner user..."
-          echo "runner ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/runner
-          chmod 440 /etc/sudoers.d/runner
           
           echo "Native ext4 filesystem ready:"
           df -h /home/runner/brave-build
@@ -137,66 +198,10 @@ jobs:
         run: |
           set -e
           
-          # Work from native filesystem
+          # Work from native filesystem as runner user
           echo "Installing npm dependencies in native filesystem..."
-          cd /home/runner/brave-build/workspace/.github/actions/stage || { echo "ERROR: Cannot find action directory"; exit 1; }
-          
-          npm install
+          sudo -u runner bash -c 'cd /home/runner/brave-build/workspace/.github/actions/stage && npm install'
           echo "Dependencies installed successfully"
-      
-      - name: Test artifact upload from WSL
-        shell: wsl-bash {0}
-        env:
-          ACTIONS_RUNTIME_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
-          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
-          ACTIONS_RESULTS_URL: ${{ env.ACTIONS_RESULTS_URL }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
-          GITHUB_RUN_NUMBER: ${{ github.run_number }}
-          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          set -e
-          
-          echo "Testing artifact upload capabilities..."
-          
-          # Check environment variables
-          echo "ACTIONS_RUNTIME_TOKEN: ${ACTIONS_RUNTIME_TOKEN:+SET}"
-          echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:+SET}"
-          echo "ACTIONS_CACHE_URL: ${ACTIONS_CACHE_URL:+SET}"
-          
-          # Create test file
-          mkdir -p /tmp/test-artifact
-          echo "WSL artifact upload test - Stage ${{ inputs.stage }}" > /tmp/test-artifact/test.txt
-          date >> /tmp/test-artifact/test.txt
-          
-          # Test upload using Node.js and @actions/artifact
-          cd /home/runner/brave-build/workspace/.github/actions/stage
-          
-          cat > /tmp/test-upload.js << 'EOF'
-          const {DefaultArtifactClient} = require('@actions/artifact');
-          const artifact = new DefaultArtifactClient();
-          
-          (async () => {
-            try {
-              console.log('Uploading test artifact...');
-              const result = await artifact.uploadArtifact(
-                'wsl-test-stage-${{ inputs.stage }}',
-                ['/tmp/test-artifact/test.txt'],
-                '/tmp/test-artifact',
-                { retentionDays: 1 }
-              );
-              console.log('✓ Test artifact uploaded successfully!');
-              console.log('Artifact ID:', result.id);
-            } catch (e) {
-              console.error('✗ Test artifact upload failed:', e.message);
-              process.exit(1);
-            }
-          })();
-          EOF
-          
-          NODE_PATH=/home/runner/brave-build/workspace/.github/actions/stage/node_modules node /tmp/test-upload.js
-          echo "✓ Artifact upload test passed"
       
       - name: Run build stage ${{ inputs.stage }} in WSL
         id: stage-container
@@ -222,6 +227,14 @@ jobs:
         run: |
           set -e
           
+          echo "Preparing environment for runner user..."
+          echo "ACTIONS_RUNTIME_TOKEN: ${ACTIONS_RUNTIME_TOKEN:+SET}"
+          echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:+SET}"
+          
+          # Run as runner user with preserved environment
+          sudo -E -u runner bash << 'RUNNERSCRIPT'
+          set -e
+          
           # Set workspace path and other variables
           export GITHUB_WORKSPACE="/home/runner/brave-build/workspace"
           export GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output}"
@@ -229,11 +242,14 @@ jobs:
           export HOME="/home/runner"
           export GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
           
+          echo "Running as user: $(whoami)"
           echo "Using native workspace: $GITHUB_WORKSPACE"
-          echo "Starting build stage ${{ inputs.stage }}..."
+          echo "ACTIONS_RUNTIME_TOKEN available: ${ACTIONS_RUNTIME_TOKEN:+YES}"
+          echo "Starting build stage..."
           
           cd "$GITHUB_WORKSPACE/.github/actions/stage" || exit 1
           node src/main.js
+          RUNNERSCRIPT
       
       - name: Show disk usage
         if: always()
