@@ -66,7 +66,7 @@ jobs:
           update: 'true'
       
       - name: Test artifact upload from WSL (quick validation)
-        shell: wsl-bash {0}
+        shell: powershell
         env:
           ACTIONS_RUNTIME_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
@@ -77,6 +77,10 @@ jobs:
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
+          # Set WSLENV to pass environment variables to WSL
+          $env:WSLENV = "ACTIONS_RUNTIME_TOKEN/u:ACTIONS_RUNTIME_URL/u:ACTIONS_CACHE_URL/u:ACTIONS_RESULTS_URL/u:GITHUB_RUN_ID/u:GITHUB_RUN_NUMBER/u:GITHUB_RUN_ATTEMPT/u:GITHUB_REPOSITORY/u"
+          
+          wsl bash -c @'
           set -e
           
           echo "=== Quick artifact upload validation ==="
@@ -123,6 +127,7 @@ jobs:
           
           node test-upload.js
           echo "✓ Validation passed - proceeding with build setup"
+          '@
       
       - name: Create runner user and ext4 filesystem on D drive
         shell: wsl-bash -u root {0}
@@ -205,7 +210,7 @@ jobs:
       
       - name: Run build stage ${{ inputs.stage }} in WSL
         id: stage-container
-        shell: wsl-bash {0}
+        shell: powershell
         env:
           ACTIONS_RUNTIME_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ACTIONS_RUNTIME_URL: ${{ env.ACTIONS_RUNTIME_URL }}
@@ -225,6 +230,10 @@ jobs:
           INPUT_BUILD_TYPE: ${{ inputs.build_type }}
           INPUT_ENV_CONFIG: ${{ secrets.BRAVE_ENV_CONFIG }}
         run: |
+          # Set WSLENV to pass all necessary environment variables to WSL
+          $env:WSLENV = "ACTIONS_RUNTIME_TOKEN/u:ACTIONS_RUNTIME_URL/u:ACTIONS_CACHE_URL/u:ACTIONS_RESULTS_URL/u:GITHUB_RUN_ID/u:GITHUB_RUN_NUMBER/u:GITHUB_RUN_ATTEMPT/u:GITHUB_REPOSITORY/u:GITHUB_SHA/u:GITHUB_REF/u:GITHUB_ACTOR/u:INPUT_FINISHED/u:INPUT_FROM_ARTIFACT/u:INPUT_PLATFORM/u:INPUT_ARCH/u:INPUT_BUILD_TYPE/u:INPUT_ENV_CONFIG/u"
+          
+          wsl bash -c @'
           set -e
           
           echo "Preparing environment for runner user..."
@@ -232,7 +241,7 @@ jobs:
           echo "ACTIONS_RUNTIME_URL: ${ACTIONS_RUNTIME_URL:+SET}"
           
           # Run as runner user with preserved environment
-          sudo -E -u runner bash << 'RUNNERSCRIPT'
+          sudo -E -u runner bash << '"'"'RUNNERSCRIPT'"'"'
           set -e
           
           # Set workspace path and other variables
@@ -250,6 +259,7 @@ jobs:
           cd "$GITHUB_WORKSPACE/.github/actions/stage" || exit 1
           node src/main.js
           RUNNERSCRIPT
+          '@
       
       - name: Show disk usage
         if: always()
