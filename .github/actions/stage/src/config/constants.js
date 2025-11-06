@@ -7,7 +7,7 @@ const path = require('path');
 // Build timeouts (in milliseconds)
 const TIMEOUTS = {
     // Global timeouts (used as fallback)
-    MAX_BUILD_TIME: 7 * 60 * 1000,     // 4 hours (GitHub Actions limit is 6 hours)
+    MAX_BUILD_TIME: 4 * 60 * 60 * 1000,     // 4 hours (GitHub Actions limit is 6 hours)
     MIN_BUILD_TIME: 5 * 60 * 1000,          // 5 minutes minimum
     CLEANUP_WAIT: 10 * 1000,                // 10 seconds
     SYNC_WAIT: 10 * 1000,                   // 10 seconds
@@ -18,7 +18,7 @@ const TIMEOUTS = {
         MIN_BUILD_TIME: 5 * 60 * 1000,       // 5 minutes
     },
     'linux-wsl': {
-        MAX_BUILD_TIME: 5 * 60 * 60 * 1000,  // 5 hours (more time for WSL overhead + larger builds)
+        MAX_BUILD_TIME: 5  * 60 * 1000,  // 5 hours (more time for WSL overhead + larger builds)
         MIN_BUILD_TIME: 5 * 60 * 1000,       // 5 minutes
     },
     macos: {
@@ -239,6 +239,7 @@ function getTimeouts(platform) {
         return {
             MAX_BUILD_TIME: TIMEOUTS.MAX_BUILD_TIME,
             MIN_BUILD_TIME: TIMEOUTS.MIN_BUILD_TIME,
+            MIN_DIST_BUILD_TIME: TIMEOUTS.MIN_DIST_BUILD_TIME,
             CLEANUP_WAIT: TIMEOUTS.CLEANUP_WAIT,
             SYNC_WAIT: TIMEOUTS.SYNC_WAIT
         };
@@ -248,6 +249,7 @@ function getTimeouts(platform) {
     return {
         MAX_BUILD_TIME: platformTimeouts.MAX_BUILD_TIME || TIMEOUTS.MAX_BUILD_TIME,
         MIN_BUILD_TIME: platformTimeouts.MIN_BUILD_TIME || TIMEOUTS.MIN_BUILD_TIME,
+        MIN_DIST_BUILD_TIME: platformTimeouts.MIN_DIST_BUILD_TIME || TIMEOUTS.MIN_DIST_BUILD_TIME,
         FALLBACK_TIMEOUT: platformTimeouts.FALLBACK_TIMEOUT, // Windows-specific
         CLEANUP_WAIT: TIMEOUTS.CLEANUP_WAIT,
         SYNC_WAIT: TIMEOUTS.SYNC_WAIT
