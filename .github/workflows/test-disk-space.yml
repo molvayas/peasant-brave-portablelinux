@@ -1,0 +1,141 @@
+name: Test Disk Space Cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      remove_dotnet:
+        description: 'Remove .NET runtime and libraries (~2 GB)'
+        required: false
+        type: boolean
+        default: false
+      remove_android:
+        description: 'Remove Android SDKs and Tools (~9 GB)'
+        required: false
+        type: boolean
+        default: false
+      remove_haskell:
+        description: 'Remove GHC (Haskell) artifacts (~5.2 GB)'
+        required: false
+        type: boolean
+        default: false
+      remove_codeql:
+        description: 'Remove CodeQL Action Bundles (~5.4 GB)'
+        required: false
+        type: boolean
+        default: false
+      remove_docker_images:
+        description: 'Remove cached Docker images (~3.2 GB)'
+        required: false
+        type: boolean
+        default: false
+      remove_large_packages:
+        description: 'Remove unwanted large Apt packages (~3.1 GB)'
+        required: false
+        type: boolean
+        default: false
+      remove_cached_tools:
+        description: 'Remove cached tools used by setup actions (~8.3 GB)'
+        required: false
+        type: boolean
+        default: false
+      remove_swapfile:
+        description: 'Remove the Swapfile (~4 GB)'
+        required: false
+        type: boolean
+        default: false
+      verbose:
+        description: 'Enable detailed logging'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  test-disk-space:
+    name: Test Disk Space Cleanup
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check disk space before cleanup
+        id: before
+        run: |
+          echo "=== Disk Space BEFORE Cleanup ==="
+          df -h
+          echo ""
+          echo "=== Detailed Disk Usage ==="
+          df -h / | tail -n 1 | awk '{print "Root filesystem: " $4 " available out of " $2 " total"}'
+          
+          # Capture available space in GB for comparison
+          AVAILABLE_BEFORE=$(df -BG / | tail -n 1 | awk '{print $4}' | sed 's/G//')
+          echo "available_before=$AVAILABLE_BEFORE" >> $GITHUB_OUTPUT
+          echo "Available space before: ${AVAILABLE_BEFORE}GB"
+          
+      - name: Maximize build space
+        uses: AdityaGarg8/remove-unwanted-software@v5
+        with:
+          remove-dotnet: ${{ inputs.remove_dotnet }}
+          remove-android: ${{ inputs.remove_android }}
+          remove-haskell: ${{ inputs.remove_haskell }}
+          remove-codeql: ${{ inputs.remove_codeql }}
+          remove-docker-images: ${{ inputs.remove_docker_images }}
+          remove-large-packages: ${{ inputs.remove_large_packages }}
+          remove-cached-tools: ${{ inputs.remove_cached_tools }}
+          remove-swapfile: ${{ inputs.remove_swapfile }}
+          verbose: ${{ inputs.verbose }}
+      
+      - name: Check disk space after cleanup
+        id: after
+        run: |
+          echo "=== Disk Space AFTER Cleanup ==="
+          df -h
+          echo ""
+          echo "=== Detailed Disk Usage ==="
+          df -h / | tail -n 1 | awk '{print "Root filesystem: " $4 " available out of " $2 " total"}'
+          
+          # Capture available space in GB for comparison
+          AVAILABLE_AFTER=$(df -BG / | tail -n 1 | awk '{print $4}' | sed 's/G//')
+          echo "available_after=$AVAILABLE_AFTER" >> $GITHUB_OUTPUT
+          echo "Available space after: ${AVAILABLE_AFTER}GB"
+      
+      - name: Calculate space freed
+        run: |
+          BEFORE=${{ steps.before.outputs.available_before }}
+          AFTER=${{ steps.after.outputs.available_after }}
+          
+          if [ -n "$BEFORE" ] && [ -n "$AFTER" ]; then
+            FREED=$((AFTER - BEFORE))
+            echo "=== Summary ==="
+            echo "Available space before: ${BEFORE}GB"
+            echo "Available space after: ${AFTER}GB"
+            echo "Space freed: ${FREED}GB"
+            echo ""
+            
+            # Add to summary
+            echo "## Disk Space Cleanup Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Available space before | ${BEFORE}GB |" >> $GITHUB_STEP_SUMMARY
+            echo "| Available space after | ${AFTER}GB |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Space freed** | **${FREED}GB** |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Cleanup Options Used" >> $GITHUB_STEP_SUMMARY
+            echo "- Remove .NET: ${{ inputs.remove_dotnet }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Remove Android: ${{ inputs.remove_android }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Remove Haskell: ${{ inputs.remove_haskell }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Remove CodeQL: ${{ inputs.remove_codeql }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Remove Docker images: ${{ inputs.remove_docker_images }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Remove large packages: ${{ inputs.remove_large_packages }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Remove cached tools: ${{ inputs.remove_cached_tools }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Remove swapfile: ${{ inputs.remove_swapfile }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Could not calculate space difference (values may be empty)"
+          fi
+      
+      - name: Show top disk usage directories
+        run: |
+          echo "=== Top 10 Largest Directories ==="
+          du -h --max-depth=1 / 2>/dev/null | sort -hr | head -n 10 || echo "Note: Some directories may not be accessible"
+          echo ""
+          echo "=== Home directory usage ==="
+          du -sh ~/* 2>/dev/null | sort -hr | head -n 10 || echo "Note: Some directories may not be accessible"
+
