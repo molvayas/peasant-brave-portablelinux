@@ -1850,6 +1850,52 @@ jobs:
             echo "ℹ️  Release publishing is disabled"
           fi
       
+      - name: Generate checksums and signatures
+        if: ${{ inputs.publish_release }}
+        run: |
+          echo "=== Generating SHA256 checksums ==="
+          cd ./artifacts
+          
+          # Generate SHA256 for all release archives (only .zip for release builds)
+          find . -type f -name "*.zip" | while read -r file; do
+            echo "Generating checksum for: $file"
+            sha256sum "$file" | sed 's|./||' > "$file.sha256"
+            echo "Created: $file.sha256"
+          done
+          
+          echo ""
+          echo "=== Generated checksums ==="
+          find . -name "*.sha256" -exec cat {} \;
+      
+      - name: Sign checksums with GPG (optional)
+        if: ${{ inputs.publish_release }}
+        env:
+          GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$GPG_KEY" ]; then
+            echo "⚠️  GPG_PRIVATE_KEY secret not configured - skipping signature generation"
+            echo "To enable GPG signing, add GPG_PRIVATE_KEY to repository secrets"
+            exit 0
+          fi
+          
+          echo "=== Setting up GPG ==="
+          # Import GPG key from secrets
+          echo "$GPG_KEY" | gpg --batch --import
+          
+          echo "=== Signing checksums ==="
+          cd ./artifacts
+          
+          # Sign all checksum files
+          find . -name "*.sha256" | while read -r file; do
+            echo "Signing: $file"
+            gpg --batch --yes --armor --detach-sign "$file"
+            echo "Created: $file.asc"
+          done
+          
+          echo ""
+          echo "=== Generated signatures ==="
+          find . -name "*.asc" -exec ls -lh {} \;
+      
       - name: Upload combined artifacts for release
         uses: actions/upload-artifact@v4
         with:
@@ -1885,18 +1931,44 @@ jobs:
       - name: Generate build summary
         id: summary
         run: |
-          echo "## Build Configuration" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Linux x64: ${{ inputs.build_linux_x64 }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Linux arm64: ${{ inputs.build_linux_arm64 }}" >> $GITHUB_STEP_SUMMARY
-          echo "- macOS x64: ${{ inputs.build_macos_x64 }}" >> $GITHUB_STEP_SUMMARY
-          echo "- macOS arm64: ${{ inputs.build_macos_arm64 }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Windows x64: ${{ inputs.build_windows_x64 }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Windows arm64: ${{ inputs.build_windows_arm64 }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Windows x86: ${{ inputs.build_windows_x86 }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Publishing release: ${{ inputs.publish_release }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Approval required: ${{ inputs.require_approval }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Build stages: 16 per platform" >> $GITHUB_STEP_SUMMARY
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          # 🎉 Brave Browser Build Complete (16-Stage)
+          
+          ## 📦 Build Configuration
+          
+          | Platform | Status | Build Type |
+          |----------|--------|------------|
+          | 🐧 Linux x64 | ${{ inputs.build_linux_x64 && '✅ Built' || '⏭️ Skipped' }} | ${{ inputs.build_type }} |
+          | 🐧 Linux arm64 | ${{ inputs.build_linux_arm64 && '✅ Built' || '⏭️ Skipped' }} | ${{ inputs.build_type }} |
+          | 🍎 macOS x64 | ${{ inputs.build_macos_x64 && '✅ Built' || '⏭️ Skipped' }} | ${{ inputs.build_type }} |
+          | 🍎 macOS arm64 | ${{ inputs.build_macos_arm64 && '✅ Built' || '⏭️ Skipped' }} | ${{ inputs.build_type }} |
+          | 🪟 Windows x64 | ${{ inputs.build_windows_x64 && '✅ Built' || '⏭️ Skipped' }} | ${{ inputs.build_type }} |
+          | 🪟 Windows arm64 | ${{ inputs.build_windows_arm64 && '✅ Built' || '⏭️ Skipped' }} | ${{ inputs.build_type }} |
+          | 🪟 Windows x86 | ${{ inputs.build_windows_x86 && '✅ Built' || '⏭️ Skipped' }} | ${{ inputs.build_type }} |
+          
+          ## ⚙️ Build Optimizations
+          
+          - **Debug Symbols**: Disabled (`symbol_level=0`, `blink_symbol_level=0`, `v8_symbol_level=0`)
+          - **Parallelism**: Limited to 3 jobs (`-j3`) to prevent runner heartbeat loss
+          - **Build Stages**: 16 stages per platform (~18-20 min per stage, maximum reliability)
+          - **Linux Compatibility**: Built on Ubuntu 20.04 (GLIBC 2.31) for wider distro support
+          
+          ## 🔐 Security & Verification
+          
+          - **Checksums**: SHA256 generated for all artifacts
+          - **GPG Signatures**: ${{ secrets.GPG_PRIVATE_KEY && '✅ Enabled' || '⚠️ Not configured' }}
+          - **Release Type**: Pre-release (custom rebuild)
+          
+          ## 📊 Release Status
+          
+          - **Publishing**: ${{ inputs.publish_release && '✅ Enabled' || '❌ Disabled (test build)' }}
+          - **Manual Approval**: ${{ inputs.require_approval && '✅ Required' || '⏭️ Not required' }}
+          - **Workflow Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          
+          ---
+          
+          **Build triggered by:** @${{ github.actor }} | **Commit:** `${{ github.sha }}`
+          EOF
           
           PLATFORMS=""
           ${{ inputs.build_linux_x64 }} && PLATFORMS="${PLATFORMS}- Linux x64\n"
@@ -1934,12 +2006,15 @@ jobs:
             - **16 stages per platform** for maximum reliability
             - Each stage runs for ~18-20 minutes
             - Better checkpoint granularity reduces risk of failures
+            
+            **Note:** This is a custom rebuild with symbol stripping for size/speed optimization.
           draft: false
-          prerelease: false
+          prerelease: true
           fail_on_unmatched_files: true
           files: |
-            ./release/**/*.tar.xz
             ./release/**/*.zip
+            ./release/**/*.sha256
+            ./release/**/*.asc
       
       - name: Release published
         run: |
