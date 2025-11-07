@@ -3,88 +3,37 @@ name: Test Disk Space Cleanup (Optimizer Method)
 on:
   workflow_dispatch:
     inputs:
-      operate_async:
-        description: 'Operate asynchronously (faster but less detailed)'
-        required: false
-        type: boolean
-        default: false
       operate_sudo:
         description: 'Use sudo mode (required for protected resources)'
         required: false
         type: boolean
         default: true
-      general_include:
-        description: 'Include items to remove (regex, one per line)'
+      cleanup_mode:
+        description: 'Cleanup mode: minimal (caches only), standard (caches + prune), aggressive (all + swap)'
         required: false
-        type: string
-        default: '.+'
-      general_exclude:
-        description: 'Exclude items from removal (regex, one per line)'
-        required: false
-        type: string
-        default: ''
-      docker_include:
-        description: 'Docker images to remove (regex, one per line)'
-        required: false
-        type: string
-        default: '.+'
-      docker_exclude:
-        description: 'Docker images to exclude (regex, one per line)'
-        required: false
-        type: string
-        default: ''
-      docker_prune:
-        description: 'Prune dangling Docker images'
+        type: choice
+        options:
+          - minimal
+          - standard
+          - aggressive
+        default: standard
+      docker_cleanup:
+        description: 'Clean Docker (prune dangling images + clean cache)'
         required: false
         type: boolean
         default: true
-      docker_clean:
-        description: 'Clean Docker cache (build caches, containers, images, networks)'
+      apt_cleanup:
+        description: 'Clean APT (prune auto-installed packages + clean cache)'
         required: false
         type: boolean
         default: true
-      apt_enable:
-        description: 'Enable APT optimization'
+      npm_cleanup:
+        description: 'Clean NPM (prune extraneous packages + clean cache)'
         required: false
         type: boolean
         default: true
-      apt_prune:
-        description: 'Prune APT auto-installed packages'
-        required: false
-        type: boolean
-        default: true
-      apt_clean:
-        description: 'Clean APT cache'
-        required: false
-        type: boolean
-        default: true
-      homebrew_enable:
-        description: 'Enable Homebrew optimization (macOS)'
-        required: false
-        type: boolean
-        default: true
-      homebrew_prune:
-        description: 'Prune Homebrew dependencies'
-        required: false
-        type: boolean
-        default: true
-      homebrew_clean:
-        description: 'Clean Homebrew cache'
-        required: false
-        type: boolean
-        default: true
-      npm_enable:
-        description: 'Enable NPM optimization'
-        required: false
-        type: boolean
-        default: true
-      npm_prune:
-        description: 'Prune NPM extraneous packages'
-        required: false
-        type: boolean
-        default: true
-      npm_clean:
-        description: 'Clean NPM cache'
+      homebrew_cleanup:
+        description: 'Clean Homebrew (prune dependencies + clean cache)'
         required: false
         type: boolean
         default: true
@@ -98,11 +47,16 @@ on:
         required: false
         type: boolean
         default: true
-      os_swap:
-        description: 'Remove OS swap file'
+      general_include:
+        description: 'Include items to remove (regex, one per line, empty = all)'
         required: false
-        type: boolean
-        default: false
+        type: string
+        default: '.+'
+      general_exclude:
+        description: 'Exclude items from removal (regex, one per line, empty = none)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   test-disk-space-optimizer:
@@ -153,26 +107,24 @@ jobs:
         uses: hugoalh/disk-space-optimizer-ghaction@v0.8.1
         continue-on-error: true
         with:
-          operate_async: ${{ inputs.operate_async && 'True' || 'False' }}
           operate_sudo: ${{ inputs.operate_sudo && 'True' || 'False' }}
           general_include: ${{ inputs.general_include != '' && inputs.general_include || '' }}
           general_exclude: ${{ inputs.general_exclude != '' && inputs.general_exclude || '' }}
-          docker_include: ${{ inputs.docker_include != '' && inputs.docker_include || '' }}
-          docker_exclude: ${{ inputs.docker_exclude != '' && inputs.docker_exclude || '' }}
-          docker_prune: ${{ inputs.docker_prune && 'True' || 'False' }}
-          docker_clean: ${{ inputs.docker_clean && 'True' || 'False' }}
-          apt_enable: ${{ inputs.apt_enable && 'True' || 'False' }}
-          apt_prune: ${{ inputs.apt_prune && 'True' || 'False' }}
-          apt_clean: ${{ inputs.apt_clean && 'True' || 'False' }}
-          homebrew_enable: ${{ inputs.homebrew_enable && 'True' || 'False' }}
-          homebrew_prune: ${{ inputs.homebrew_prune && 'True' || 'False' }}
-          homebrew_clean: ${{ inputs.homebrew_clean && 'True' || 'False' }}
-          npm_enable: ${{ inputs.npm_enable && 'True' || 'False' }}
-          npm_prune: ${{ inputs.npm_prune && 'True' || 'False' }}
-          npm_clean: ${{ inputs.npm_clean && 'True' || 'False' }}
+          docker_include: ${{ inputs.general_include != '' && inputs.general_include || '.+' }}
+          docker_prune: ${{ inputs.cleanup_mode != 'minimal' && inputs.docker_cleanup && 'True' || 'False' }}
+          docker_clean: ${{ inputs.docker_cleanup && 'True' || 'False' }}
+          apt_enable: ${{ inputs.apt_cleanup && 'True' || 'False' }}
+          apt_prune: ${{ inputs.cleanup_mode != 'minimal' && inputs.apt_cleanup && 'True' || 'False' }}
+          apt_clean: ${{ inputs.apt_cleanup && 'True' || 'False' }}
+          homebrew_enable: ${{ inputs.homebrew_cleanup && 'True' || 'False' }}
+          homebrew_prune: ${{ inputs.cleanup_mode != 'minimal' && inputs.homebrew_cleanup && 'True' || 'False' }}
+          homebrew_clean: ${{ inputs.homebrew_cleanup && 'True' || 'False' }}
+          npm_enable: ${{ inputs.npm_cleanup && 'True' || 'False' }}
+          npm_prune: ${{ inputs.cleanup_mode != 'minimal' && inputs.npm_cleanup && 'True' || 'False' }}
+          npm_clean: ${{ inputs.npm_cleanup && 'True' || 'False' }}
           pipx_enable: ${{ inputs.pipx_enable && 'True' || 'False' }}
           fs_enable: ${{ inputs.fs_enable && 'True' || 'False' }}
-          os_swap: ${{ inputs.os_swap && 'True' || 'False' }}
+          os_swap: ${{ inputs.cleanup_mode == 'aggressive' && 'True' || 'False' }}
       
       - name: Check disk space after cleanup
         id: after
@@ -238,34 +190,30 @@ jobs:
             echo "| **Space freed** | **${FREED_ROOT}GB** |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Configuration Used" >> $GITHUB_STEP_SUMMARY
-            echo "- Operate async: ${{ inputs.operate_async }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Cleanup mode: **${{ inputs.cleanup_mode }}**" >> $GITHUB_STEP_SUMMARY
+            echo "  - minimal: caches only" >> $GITHUB_STEP_SUMMARY
+            echo "  - standard: caches + prune dependencies" >> $GITHUB_STEP_SUMMARY
+            echo "  - aggressive: all + swap file removal" >> $GITHUB_STEP_SUMMARY
             echo "- Operate sudo: ${{ inputs.operate_sudo }}" >> $GITHUB_STEP_SUMMARY
             echo "- General include: \`${{ inputs.general_include }}\`" >> $GITHUB_STEP_SUMMARY
             echo "- General exclude: \`${{ inputs.general_exclude != '' && inputs.general_exclude || 'None' }}\`" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Package Manager Options" >> $GITHUB_STEP_SUMMARY
-            echo "- **Docker:**" >> $GITHUB_STEP_SUMMARY
-            echo "  - Enable: ${{ inputs.docker_include != '' }}" >> $GITHUB_STEP_SUMMARY
-            echo "  - Prune: ${{ inputs.docker_prune }}" >> $GITHUB_STEP_SUMMARY
-            echo "  - Clean: ${{ inputs.docker_clean }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **APT:**" >> $GITHUB_STEP_SUMMARY
-            echo "  - Enable: ${{ inputs.apt_enable }}" >> $GITHUB_STEP_SUMMARY
-            echo "  - Prune: ${{ inputs.apt_prune }}" >> $GITHUB_STEP_SUMMARY
-            echo "  - Clean: ${{ inputs.apt_clean }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Homebrew:**" >> $GITHUB_STEP_SUMMARY
-            echo "  - Enable: ${{ inputs.homebrew_enable }}" >> $GITHUB_STEP_SUMMARY
-            echo "  - Prune: ${{ inputs.homebrew_prune }}" >> $GITHUB_STEP_SUMMARY
-            echo "  - Clean: ${{ inputs.homebrew_clean }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **NPM:**" >> $GITHUB_STEP_SUMMARY
-            echo "  - Enable: ${{ inputs.npm_enable }}" >> $GITHUB_STEP_SUMMARY
-            echo "  - Prune: ${{ inputs.npm_prune }}" >> $GITHUB_STEP_SUMMARY
-            echo "  - Clean: ${{ inputs.npm_clean }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Pipx:**" >> $GITHUB_STEP_SUMMARY
-            echo "  - Enable: ${{ inputs.pipx_enable }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **File System:**" >> $GITHUB_STEP_SUMMARY
-            echo "  - Enable: ${{ inputs.fs_enable }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **OS Swap:**" >> $GITHUB_STEP_SUMMARY
-            echo "  - Remove: ${{ inputs.os_swap }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Docker:** ${{ inputs.docker_cleanup && 'Enabled' || 'Disabled' }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Prune: ${{ inputs.cleanup_mode != 'minimal' && inputs.docker_cleanup }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Clean: ${{ inputs.docker_cleanup }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **APT:** ${{ inputs.apt_cleanup && 'Enabled' || 'Disabled' }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Prune: ${{ inputs.cleanup_mode != 'minimal' && inputs.apt_cleanup }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Clean: ${{ inputs.apt_cleanup }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Homebrew:** ${{ inputs.homebrew_cleanup && 'Enabled' || 'Disabled' }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Prune: ${{ inputs.cleanup_mode != 'minimal' && inputs.homebrew_cleanup }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Clean: ${{ inputs.homebrew_cleanup }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **NPM:** ${{ inputs.npm_cleanup && 'Enabled' || 'Disabled' }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Prune: ${{ inputs.cleanup_mode != 'minimal' && inputs.npm_cleanup }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Clean: ${{ inputs.npm_cleanup }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Pipx:** ${{ inputs.pipx_enable && 'Enabled' || 'Disabled' }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **File System:** ${{ inputs.fs_enable && 'Enabled' || 'Disabled' }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **OS Swap:** ${{ inputs.cleanup_mode == 'aggressive' && 'Removed' || 'Kept' }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Note" >> $GITHUB_STEP_SUMMARY
             echo "This action uses package manager-specific cleanup methods and regex-based filtering for fine-grained control." >> $GITHUB_STEP_SUMMARY
