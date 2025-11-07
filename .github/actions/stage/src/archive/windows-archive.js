@@ -54,7 +54,7 @@ async function createWindowsCheckpoint(workDir, paths, artifact, artifactName) {
             ...fullPaths,
             '-mx=3',
             '-mtc=on',
-            '-mmt=4',
+            '-mmt=3',
             '-m0=LZMA2:d256m:fb64'
         ], {ignoreReturnCode: true});
     } finally {
@@ -126,12 +126,13 @@ async function extractWindowsCheckpoint(workDir, artifact, artifactName) {
     // Extract with 7z
     const artifactPath = path.join(workDir, 'artifacts.7z');
     console.log(`Extracting ${artifactPath}...`);
-    
+
     await exec.exec('7z', [
         'x',
         artifactPath,
         `-o${workDir}`,
-        '-y'  // Yes to all prompts
+        '-y',               // Yes to all prompts
+        '-mmt=3'            // Limit to 3 threads
     ], {ignoreReturnCode: true});
     
     console.log('✓ Checkpoint extracted');
