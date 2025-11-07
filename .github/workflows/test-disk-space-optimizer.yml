@@ -1,0 +1,295 @@
+name: Test Disk Space Cleanup (Optimizer Method)
+
+on:
+  workflow_dispatch:
+    inputs:
+      operate_async:
+        description: 'Operate asynchronously (faster but less detailed)'
+        required: false
+        type: boolean
+        default: false
+      operate_sudo:
+        description: 'Use sudo mode (required for protected resources)'
+        required: false
+        type: boolean
+        default: true
+      general_include:
+        description: 'Include items to remove (regex, one per line)'
+        required: false
+        type: string
+        default: '.+'
+      general_exclude:
+        description: 'Exclude items from removal (regex, one per line)'
+        required: false
+        type: string
+        default: ''
+      docker_include:
+        description: 'Docker images to remove (regex, one per line)'
+        required: false
+        type: string
+        default: '.+'
+      docker_exclude:
+        description: 'Docker images to exclude (regex, one per line)'
+        required: false
+        type: string
+        default: ''
+      docker_prune:
+        description: 'Prune dangling Docker images'
+        required: false
+        type: boolean
+        default: true
+      docker_clean:
+        description: 'Clean Docker cache (build caches, containers, images, networks)'
+        required: false
+        type: boolean
+        default: true
+      apt_enable:
+        description: 'Enable APT optimization'
+        required: false
+        type: boolean
+        default: true
+      apt_prune:
+        description: 'Prune APT auto-installed packages'
+        required: false
+        type: boolean
+        default: true
+      apt_clean:
+        description: 'Clean APT cache'
+        required: false
+        type: boolean
+        default: true
+      homebrew_enable:
+        description: 'Enable Homebrew optimization (macOS)'
+        required: false
+        type: boolean
+        default: true
+      homebrew_prune:
+        description: 'Prune Homebrew dependencies'
+        required: false
+        type: boolean
+        default: true
+      homebrew_clean:
+        description: 'Clean Homebrew cache'
+        required: false
+        type: boolean
+        default: true
+      npm_enable:
+        description: 'Enable NPM optimization'
+        required: false
+        type: boolean
+        default: true
+      npm_prune:
+        description: 'Prune NPM extraneous packages'
+        required: false
+        type: boolean
+        default: true
+      npm_clean:
+        description: 'Clean NPM cache'
+        required: false
+        type: boolean
+        default: true
+      pipx_enable:
+        description: 'Enable Pipx optimization'
+        required: false
+        type: boolean
+        default: true
+      fs_enable:
+        description: 'Enable file system optimization'
+        required: false
+        type: boolean
+        default: true
+      os_swap:
+        description: 'Remove OS swap file'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test-disk-space-optimizer:
+    name: Test Disk Space Cleanup (Optimizer Method)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check disk space before cleanup
+        id: before
+        run: |
+          echo "=== Disk Space BEFORE Cleanup ==="
+          df -h
+          echo ""
+          echo "=== Root Filesystem Details ==="
+          df -h / | tail -n 1 | awk '{print "Root: " $4 " available out of " $2 " total (" $5 " used)"}'
+          echo ""
+          echo "=== Temp Disk (/mnt) Details ==="
+          if mountpoint -q /mnt; then
+            df -h /mnt | tail -n 1 | awk '{print "Temp disk: " $4 " available out of " $2 " total (" $5 " used)"}'
+          else
+            echo "Temp disk not mounted"
+          fi
+          
+          # Capture available space in GB for comparison
+          AVAILABLE_BEFORE_ROOT=$(df -BG / | tail -n 1 | awk '{print $4}' | sed 's/G//')
+          AVAILABLE_BEFORE_TEMP=$(df -BG /mnt 2>/dev/null | tail -n 1 | awk '{print $4}' | sed 's/G//' || echo "0")
+          echo "available_before_root=$AVAILABLE_BEFORE_ROOT" >> $GITHUB_OUTPUT
+          echo "available_before_temp=$AVAILABLE_BEFORE_TEMP" >> $GITHUB_OUTPUT
+          echo "Available space before - Root: ${AVAILABLE_BEFORE_ROOT}GB, Temp: ${AVAILABLE_BEFORE_TEMP}GB"
+          
+          # Check Docker disk usage
+          echo ""
+          echo "=== Docker Disk Usage ==="
+          docker system df 2>/dev/null || echo "Docker not available or not running"
+          
+          # Check APT cache size
+          echo ""
+          echo "=== APT Cache Size ==="
+          du -sh /var/cache/apt/archives 2>/dev/null || echo "APT cache not accessible"
+          
+          # Check NPM cache size
+          echo ""
+          echo "=== NPM Cache Size ==="
+          npm cache verify 2>/dev/null || echo "NPM not available"
+          du -sh ~/.npm 2>/dev/null || echo "NPM cache directory not found"
+      
+      - name: Optimize disk space
+        uses: hugoalh/disk-space-optimizer-ghaction@v0.8.1
+        continue-on-error: true
+        with:
+          operate_async: ${{ inputs.operate_async && 'True' || 'False' }}
+          operate_sudo: ${{ inputs.operate_sudo && 'True' || 'False' }}
+          general_include: ${{ inputs.general_include != '' && inputs.general_include || '' }}
+          general_exclude: ${{ inputs.general_exclude != '' && inputs.general_exclude || '' }}
+          docker_include: ${{ inputs.docker_include != '' && inputs.docker_include || '' }}
+          docker_exclude: ${{ inputs.docker_exclude != '' && inputs.docker_exclude || '' }}
+          docker_prune: ${{ inputs.docker_prune && 'True' || 'False' }}
+          docker_clean: ${{ inputs.docker_clean && 'True' || 'False' }}
+          apt_enable: ${{ inputs.apt_enable && 'True' || 'False' }}
+          apt_prune: ${{ inputs.apt_prune && 'True' || 'False' }}
+          apt_clean: ${{ inputs.apt_clean && 'True' || 'False' }}
+          homebrew_enable: ${{ inputs.homebrew_enable && 'True' || 'False' }}
+          homebrew_prune: ${{ inputs.homebrew_prune && 'True' || 'False' }}
+          homebrew_clean: ${{ inputs.homebrew_clean && 'True' || 'False' }}
+          npm_enable: ${{ inputs.npm_enable && 'True' || 'False' }}
+          npm_prune: ${{ inputs.npm_prune && 'True' || 'False' }}
+          npm_clean: ${{ inputs.npm_clean && 'True' || 'False' }}
+          pipx_enable: ${{ inputs.pipx_enable && 'True' || 'False' }}
+          fs_enable: ${{ inputs.fs_enable && 'True' || 'False' }}
+          os_swap: ${{ inputs.os_swap && 'True' || 'False' }}
+      
+      - name: Check disk space after cleanup
+        id: after
+        run: |
+          echo "=== Disk Space AFTER Cleanup ==="
+          df -h
+          echo ""
+          echo "=== Root Filesystem Details ==="
+          df -h / | tail -n 1 | awk '{print "Root: " $4 " available out of " $2 " total (" $5 " used)"}'
+          echo ""
+          echo "=== Temp Disk (/mnt) Details ==="
+          if mountpoint -q /mnt; then
+            df -h /mnt | tail -n 1 | awk '{print "Temp disk: " $4 " available out of " $2 " total (" $5 " used)"}'
+          else
+            echo "Temp disk not mounted"
+          fi
+          
+          # Capture available space in GB for comparison
+          AVAILABLE_AFTER_ROOT=$(df -BG / | tail -n 1 | awk '{print $4}' | sed 's/G//')
+          AVAILABLE_AFTER_TEMP=$(df -BG /mnt 2>/dev/null | tail -n 1 | awk '{print $4}' | sed 's/G//' || echo "0")
+          
+          echo "available_after_root=$AVAILABLE_AFTER_ROOT" >> $GITHUB_OUTPUT
+          echo "available_after_temp=$AVAILABLE_AFTER_TEMP" >> $GITHUB_OUTPUT
+          echo "Available space after - Root: ${AVAILABLE_AFTER_ROOT}GB, Temp: ${AVAILABLE_AFTER_TEMP}GB"
+          
+          # Check Docker disk usage after
+          echo ""
+          echo "=== Docker Disk Usage After ==="
+          docker system df 2>/dev/null || echo "Docker not available or not running"
+          
+          # Check APT cache size after
+          echo ""
+          echo "=== APT Cache Size After ==="
+          du -sh /var/cache/apt/archives 2>/dev/null || echo "APT cache not accessible"
+          
+          # Check NPM cache size after
+          echo ""
+          echo "=== NPM Cache Size After ==="
+          npm cache verify 2>/dev/null || echo "NPM not available"
+          du -sh ~/.npm 2>/dev/null || echo "NPM cache directory not found"
+      
+      - name: Calculate space freed
+        run: |
+          BEFORE_ROOT=${{ steps.before.outputs.available_before_root }}
+          AFTER_ROOT=${{ steps.after.outputs.available_after_root }}
+          
+          if [ -n "$BEFORE_ROOT" ] && [ -n "$AFTER_ROOT" ]; then
+            FREED_ROOT=$((AFTER_ROOT - BEFORE_ROOT))
+            echo "=== Summary ==="
+            echo "Root filesystem:"
+            echo "  Available space before: ${BEFORE_ROOT}GB"
+            echo "  Available space after: ${AFTER_ROOT}GB"
+            echo "  Space freed: ${FREED_ROOT}GB"
+            echo ""
+            
+            # Add to summary
+            echo "## Disk Space Cleanup Results (Optimizer Method)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Root filesystem before | ${BEFORE_ROOT}GB |" >> $GITHUB_STEP_SUMMARY
+            echo "| Root filesystem after | ${AFTER_ROOT}GB |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Space freed** | **${FREED_ROOT}GB** |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Configuration Used" >> $GITHUB_STEP_SUMMARY
+            echo "- Operate async: ${{ inputs.operate_async }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Operate sudo: ${{ inputs.operate_sudo }}" >> $GITHUB_STEP_SUMMARY
+            echo "- General include: \`${{ inputs.general_include }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- General exclude: \`${{ inputs.general_exclude != '' && inputs.general_exclude || 'None' }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Package Manager Options" >> $GITHUB_STEP_SUMMARY
+            echo "- **Docker:**" >> $GITHUB_STEP_SUMMARY
+            echo "  - Enable: ${{ inputs.docker_include != '' }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Prune: ${{ inputs.docker_prune }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Clean: ${{ inputs.docker_clean }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **APT:**" >> $GITHUB_STEP_SUMMARY
+            echo "  - Enable: ${{ inputs.apt_enable }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Prune: ${{ inputs.apt_prune }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Clean: ${{ inputs.apt_clean }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Homebrew:**" >> $GITHUB_STEP_SUMMARY
+            echo "  - Enable: ${{ inputs.homebrew_enable }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Prune: ${{ inputs.homebrew_prune }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Clean: ${{ inputs.homebrew_clean }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **NPM:**" >> $GITHUB_STEP_SUMMARY
+            echo "  - Enable: ${{ inputs.npm_enable }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Prune: ${{ inputs.npm_prune }}" >> $GITHUB_STEP_SUMMARY
+            echo "  - Clean: ${{ inputs.npm_clean }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Pipx:**" >> $GITHUB_STEP_SUMMARY
+            echo "  - Enable: ${{ inputs.pipx_enable }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **File System:**" >> $GITHUB_STEP_SUMMARY
+            echo "  - Enable: ${{ inputs.fs_enable }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **OS Swap:**" >> $GITHUB_STEP_SUMMARY
+            echo "  - Remove: ${{ inputs.os_swap }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Note" >> $GITHUB_STEP_SUMMARY
+            echo "This action uses package manager-specific cleanup methods and regex-based filtering for fine-grained control." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Could not calculate space difference (values may be empty)"
+          fi
+      
+      - name: Show detailed cleanup results
+        run: |
+          echo "=== Package Manager Status ==="
+          echo ""
+          echo "APT packages:"
+          dpkg -l | wc -l || echo "Could not count APT packages"
+          echo ""
+          echo "Docker images:"
+          docker images 2>/dev/null | wc -l || echo "Docker not available"
+          echo ""
+          echo "NPM packages (global):"
+          npm list -g --depth=0 2>/dev/null | wc -l || echo "NPM not available"
+          echo ""
+          echo "=== Swap Information ==="
+          free -h
+          swapon --show || echo "No swap information available"
+          echo ""
+          echo "=== Top 10 Largest Directories ==="
+          sudo du -h --max-depth=1 / 2>/dev/null | sort -hr | head -n 10 || echo "Note: Some directories may not be accessible"
+
