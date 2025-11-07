@@ -130,15 +130,17 @@ class LinuxBuilder {
         let buildArgs;
         if (this.buildType === 'Release') {
             // Release: build browser and create distribution package in one go
-            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing', '--ninja', `j:${ninjaJobs}`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
+            buildArgs = ['run', 'build', 'Release', '--', '--target_arch=' + this.arch, '--target=create_dist', '--skip_signing', '--ninja', `j:${ninjaJobs}`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build Release with create_dist (unified)...');
+            console.log(`Note: Building for ${this.arch} architecture`);
             console.log('Note: Unified for consistency with macOS after Xcode initialization fix');
             console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
             console.log(`Note: Using ${ninjaJobs} parallel jobs (${cpuCount} threads - 1 for runner heartbeat)`);
         } else {
             // Component: just build
-            buildArgs = ['run', 'build', '--', '--ninja', `j:${ninjaJobs}`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
+            buildArgs = ['run', 'build', '--', '--target_arch=' + this.arch, '--ninja', `j:${ninjaJobs}`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build (component)...');
+            console.log(`Note: Building for ${this.arch} architecture`);
             console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
             console.log(`Note: Using ${ninjaJobs} parallel jobs (${cpuCount} threads - 1 for runner heartbeat)`);
         }
@@ -156,6 +158,13 @@ class LinuxBuilder {
         } else if (buildCode === 124) {
             // Timeout
             console.log('⏱️ npm run build timed out - will resume in next stage');
+            
+            // Check disk space before archiving
+            console.log('\n=== Checking disk space ===');
+            await exec.exec('df', ['-h', this.paths.srcDir], {ignoreReturnCode: true});
+            console.log('\n=== Disk usage in out directory ===');
+            await exec.exec('du', ['-sh', path.join(this.paths.srcDir, 'out')], {ignoreReturnCode: true});
+            await exec.exec('du', ['-h', '--max-depth=1', path.join(this.paths.srcDir, 'out')], {ignoreReturnCode: true});
             
             // Wait for processes to finish cleanup
             const timeouts = getTimeouts(this.platform);
@@ -197,13 +206,22 @@ class LinuxBuilder {
         
         if (this.buildType === 'Release') {
             // Release builds: grab distribution package
-            // Linux creates the zip in out/Release/ directly (via deb build script)
+            // Linux creates the zip in out/Release/ or out/Release_{arch}/ (via deb build script)
             console.log('Packaging Release build...');
             
-            // Linux: The deb build script creates a zip in out/Release/ directly
+            // Linux: The deb build script creates a zip in out/Release/ or out/Release_{arch}/
             // Format: brave-browser[-stable]-{version}-linux-{debarch}.zip
             //   where debarch = "amd64" for x64, "arm64" for arm64
-            const outputDir = path.join(this.paths.srcDir, 'out', 'Release');
+            // Brave's build system naming:
+            // - x64: out/Release/ (no suffix, default)
+            // - arm64: out/Release_arm64/ (with suffix)
+            // - x86: out/Release_x86/ (with suffix)
+            const possibleOutputDirs = [
+                path.join(this.paths.srcDir, 'out', 'Release')  // Always try default first
+            ];
+            if (this.arch !== 'x64') {
+                possibleOutputDirs.push(path.join(this.paths.srcDir, 'out', `Release_${this.arch}`));
+            }
             
             // Strip any leading 'v' from version
             const versionWithoutV = this.braveVersion.startsWith('v') 
@@ -221,42 +239,85 @@ class LinuxBuilder {
             
             let distZipPath = null;
             let expectedZipName = null;
+            let foundInDir = null;
             
-            for (const name of possibleNames) {
-                const testPath = path.join(outputDir, name);
-                try {
-                    await fs.access(testPath);
-                    distZipPath = testPath;
-                    expectedZipName = name;
-                    break;
-                } catch (e) {
-                    // Try next name
+            // Try all possible output directories with expected names
+            for (const outputDir of possibleOutputDirs) {
+                for (const name of possibleNames) {
+                    const testPath = path.join(outputDir, name);
+                    try {
+                        await fs.access(testPath);
+                        distZipPath = testPath;
+                        expectedZipName = name;
+                        foundInDir = outputDir;
+                        console.log(`✓ Found distribution package: ${expectedZipName} in ${outputDir}`);
+                        break;
+            } catch (e) {
+                        // Try next name/directory
+                    }
                 }
+                if (distZipPath) break;
             }
             
-            if (distZipPath) {
-                console.log(`✓ Found distribution package: ${expectedZipName}`);
-            } else {
-                // Fallback: search for any brave-browser*.zip in out/Release/
+            if (!distZipPath) {
+                // Fallback 1: search for any brave-browser*.zip in known possible directories
                 console.log(`Distribution package not found with expected names`);
                 console.log(`Looking for: ${possibleNames.join(', ')}`);
-                console.log(`Searching in ${outputDir}...`);
-                try {
-                    const files = await fs.readdir(outputDir);
-                    console.log('Files in out/Release:', files.filter(f => f.endsWith('.zip')));
-                    // Try to find any brave-browser*.zip file
-                    const zipFile = files.find(f => f.startsWith('brave-browser') && f.endsWith('.zip') && !f.includes('symbols'));
+                
+                for (const outputDir of possibleOutputDirs) {
+                    console.log(`Searching in ${outputDir}...`);
+                    try {
+                        const files = await fs.readdir(outputDir);
+                        console.log(`Files in ${outputDir}:`, files.filter(f => f.endsWith('.zip')));
+                        // Try to find any brave-browser*.zip file
+                        const zipFile = files.find(f => f.startsWith('brave-browser') && f.endsWith('.zip') && !f.includes('symbols'));
                     if (zipFile) {
                         console.log(`Using found zip file: ${zipFile}`);
-                        distZipPath = path.join(outputDir, zipFile);
-                        expectedZipName = zipFile;
+                            distZipPath = path.join(outputDir, zipFile);
+                            expectedZipName = zipFile;
+                            foundInDir = outputDir;
+                            break;
+                        }
+                    } catch (e2) {
+                        // Directory doesn't exist or can't be read, try next
+                    }
+                }
+                
+                // Fallback 2: scan for ANY Release* directory in out/
+                if (!distZipPath) {
+                    console.log(`Fallback: scanning for any Release* directory in out/...`);
+                    const outDir = path.join(this.paths.srcDir, 'out');
+                    try {
+                        const allDirs = await fs.readdir(outDir, { withFileTypes: true });
+                        const releaseDirs = allDirs
+                            .filter(dirent => dirent.isDirectory() && dirent.name.startsWith('Release'))
+                            .map(dirent => path.join(outDir, dirent.name));
+                        
+                        console.log(`Found Release directories: ${releaseDirs.join(', ')}`);
+                        
+                        for (const releaseDir of releaseDirs) {
+                            console.log(`Checking ${releaseDir}...`);
+                            try {
+                                const files = await fs.readdir(releaseDir);
+                                const zipFile = files.find(f => f.startsWith('brave-browser') && f.endsWith('.zip') && !f.includes('symbols'));
+                                if (zipFile) {
+                                    console.log(`✓ Found zip file in ${releaseDir}: ${zipFile}`);
+                                    distZipPath = path.join(releaseDir, zipFile);
+                                    expectedZipName = zipFile;
+                                    foundInDir = releaseDir;
+                                    break;
+                                }
+                            } catch (e3) {
+                                // Can't read this directory, try next
+                            }
                     }
                 } catch (e2) {
-                    console.error('Error listing out/Release:', e2.message);
+                        console.log(`Could not scan out/ directory: ${e2.message}`);
+                    }
                 }
                 
                 if (!distZipPath) {
-                    throw new Error(`Distribution package not found. Expected one of: ${possibleNames.join(', ')}`);
+                    throw new Error(`Distribution package not found. Tried: ${possibleOutputDirs.join(', ')}, and all Release* directories`);
                 }
             }
             

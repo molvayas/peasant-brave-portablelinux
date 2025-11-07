@@ -126,15 +126,17 @@ class WindowsBuilder {
         let buildArgs;
         if (this.buildType === 'Release') {
             // Release: build browser and create distribution package in one go
-            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing', '--ninja', `j:${ninjaJobs}`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
+            buildArgs = ['run', 'build', 'Release', '--', '--target_arch=' + this.arch, '--target=create_dist', '--skip_signing', '--ninja', `j:${ninjaJobs}`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build Release with create_dist (unified)...');
+            console.log(`Note: Building for ${this.arch} architecture`);
             console.log('Note: Unified for consistency with macOS after Xcode initialization fix');
             console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
             console.log(`Note: Using ${ninjaJobs} parallel jobs (${cpuCount} threads - 1 for runner heartbeat)`);
         } else {
             // Component: just build
-            buildArgs = ['run', 'build', '--', '--ninja', `j:${ninjaJobs}`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
+            buildArgs = ['run', 'build', '--', '--target_arch=' + this.arch, '--ninja', `j:${ninjaJobs}`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build (component)...');
+            console.log(`Note: Building for ${this.arch} architecture`);
             console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
             console.log(`Note: Using ${ninjaJobs} parallel jobs (${cpuCount} threads - 1 for runner heartbeat)`);
         }
@@ -153,6 +155,21 @@ class WindowsBuilder {
         } else if (buildCode === 999) {
             // Windows timeout code
             console.log('⏱️ npm run build timed out - will resume in next stage');
+            
+            // Check disk space before archiving
+            console.log('\n=== Checking disk space ===');
+            const outPath = path.join(this.paths.srcDir, 'out');
+            
+            // Show disk space using wmic (simpler and more reliable)
+            await exec.exec('wmic', ['logicaldisk', 'get', 'name,freespace,size', '/format:table'], {ignoreReturnCode: true});
+            
+            console.log('\n=== Disk usage in out directory ===');
+            // Calculate out/ directory size
+            await exec.exec('powershell', [
+                '-NoProfile',
+                '-Command',
+                `$path = '${outPath.replace(/\\/g, '\\\\')}'; if (Test-Path $path) { $size = (Get-ChildItem $path -Recurse -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum / 1GB; Write-Host "Total size: $([math]::Round($size, 2)) GB" } else { Write-Host "Directory does not exist" }`
+            ], {ignoreReturnCode: true});
             
             // Critical: Wait for Windows to release all file handles and locks
             // Chromium builds have hundreds of open files and processes
@@ -203,8 +220,17 @@ class WindowsBuilder {
             // Release builds: grab distribution package from dist/
             console.log('Packaging Release build from dist...');
             
-            // Windows: create_dist creates zip in out/Release/dist/
-            const distDir = path.join(this.paths.srcDir, 'out', 'Release', 'dist');
+            // Windows: create_dist creates zip in out/Release/dist/ or out/Release_{arch}/dist/
+            // Brave's build system naming:
+            // - x64: out/Release/ (no suffix, default)
+            // - arm64: out/Release_arm64/ (with suffix)
+            // - x86: out/Release_x86/ (with suffix)
+            const possibleDistDirs = [
+                path.join(this.paths.srcDir, 'out', 'Release', 'dist')  // Always try default first
+            ];
+            if (this.arch !== 'x64') {
+                possibleDistDirs.push(path.join(this.paths.srcDir, 'out', `Release_${this.arch}`, 'dist'));
+            }
             
             // Look for the distribution zip file
             // Format: brave-v{version}-win32-{arch}.zip (lowercase "brave", single v, win32 not win)
@@ -213,33 +239,82 @@ class WindowsBuilder {
                 ? this.braveVersion.substring(1) 
                 : this.braveVersion;
             const expectedZipName = `brave-v${versionWithoutV}-win32-${this.arch}.zip`;
-            const distZipPath = path.join(distDir, expectedZipName);
             
-            try {
-                await fs.access(distZipPath);
-                console.log(`✓ Found distribution package: ${expectedZipName}`);
-            } catch (e) {
-                console.log(`Distribution package not found at ${distZipPath}`);
-                console.log(`Listing contents of ${distDir}...`);
+            let distZipPath = null;
+            let foundInDir = null;
+            
+            // Try all possible directories
+            for (const distDir of possibleDistDirs) {
+                const testPath = path.join(distDir, expectedZipName);
                 try {
-                    const files = await fs.readdir(distDir);
-                    console.log('Files in dist:', files.filter(f => f.endsWith('.zip')));
-                    // Try to find any .zip file (look for brave-*.zip)
-                    const distFile = files.find(f => f.startsWith('brave-') && f.endsWith('.zip') && !f.includes('symbols'));
-                    if (distFile) {
-                        console.log(`Using found distribution file: ${distFile}`);
-                        const foundDistPath = path.join(distDir, distFile);
-                        const ext = distFile.split('.').pop();
-                        const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.${ext}`;
-                        const packagePath = path.join(this.paths.workDir, packageName);
-                        await fs.copyFile(foundDistPath, packagePath);
-                        console.log('✓ Package copied successfully');
-                        return { packagePath, packageName };
+                    await fs.access(testPath);
+                    distZipPath = testPath;
+                    foundInDir = distDir;
+                    console.log(`✓ Found distribution package: ${expectedZipName} in ${distDir}`);
+                    break;
+                } catch (e) {
+                    // Try next directory
+                }
+            }
+            
+            if (!distZipPath) {
+                // Fallback 1: search for any brave-*.zip in known directories
+                console.log(`Expected file ${expectedZipName} not found in standard locations`);
+                console.log('Searching for any brave distribution file...');
+                
+                for (const distDir of possibleDistDirs) {
+                    console.log(`Searching in ${distDir}...`);
+                    try {
+                        const files = await fs.readdir(distDir);
+                        console.log(`Files in ${distDir}:`, files.filter(f => f.endsWith('.zip')));
+                        const zipFile = files.find(f => f.startsWith('brave-') && f.endsWith('.zip') && !f.includes('symbols'));
+                        if (zipFile) {
+                            console.log(`Using found zip file: ${zipFile}`);
+                            distZipPath = path.join(distDir, zipFile);
+                            foundInDir = distDir;
+                            break;
+                        }
+                    } catch (e2) {
+                        // Directory doesn't exist or can't be read, try next
+                    }
+                }
+                
+                // Fallback 2: scan for ANY Release* directory in out/
+                if (!distZipPath) {
+                    console.log(`Fallback: scanning for any Release* directory in out/...`);
+                    const outDir = path.join(this.paths.srcDir, 'out');
+                    try {
+                        const allDirs = await fs.readdir(outDir, { withFileTypes: true });
+                        const releaseDirs = allDirs
+                            .filter(dirent => dirent.isDirectory() && dirent.name.startsWith('Release'))
+                            .map(dirent => dirent.name);
+                        
+                        console.log(`Found Release directories: ${releaseDirs.join(', ')}`);
+                        
+                        for (const releaseDir of releaseDirs) {
+                            const distDir = path.join(outDir, releaseDir, 'dist');
+                            console.log(`Checking ${distDir}...`);
+                            try {
+                                const files = await fs.readdir(distDir);
+                                const zipFile = files.find(f => f.startsWith('brave-') && f.endsWith('.zip') && !f.includes('symbols'));
+                                if (zipFile) {
+                                    console.log(`✓ Found zip file in ${distDir}: ${zipFile}`);
+                                    distZipPath = path.join(distDir, zipFile);
+                                    foundInDir = distDir;
+                                    break;
+                                }
+                            } catch (e3) {
+                                // Can't read this directory, try next
+                            }
                     }
                 } catch (e2) {
-                    console.error('Error listing dist:', e2.message);
+                        console.log(`Could not scan out/ directory: ${e2.message}`);
+                    }
                 }
-                throw new Error(`Distribution package not found: ${expectedZipName}`);
+                
+                if (!distZipPath) {
+                    throw new Error(`Distribution package not found. Tried: ${possibleDistDirs.join(', ')}, and all Release* directories`);
+                }
             }
             
             // Copy to work directory with standardized name
