@@ -124,15 +124,19 @@ class LinuxBuilder {
         let buildArgs;
         if (this.buildType === 'Release') {
             // Release: build browser and create distribution package in one go
-            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing', '--gn', 'symbol_level:0'];
+            // Limit to 3 jobs to prevent runner heartbeat starvation on 4-core GitHub runners
+            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing', '--ninja', 'j:3', '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build Release with create_dist (unified)...');
             console.log('Note: Unified for consistency with macOS after Xcode initialization fix');
-            console.log('Note: Building with symbol_level:0 to reduce build size and time');
+            console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
+            console.log('Note: Limited to -j3 (via --ninja j:3) to prevent GitHub runner heartbeat loss on 4-core runners');
         } else {
             // Component: just build
-            buildArgs = ['run', 'build', '--', '--gn', 'symbol_level:0'];
+            // Limit to 3 jobs to prevent runner heartbeat starvation on 4-core GitHub runners
+            buildArgs = ['run', 'build', '--', '--ninja', 'j:3', '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build (component)...');
-            console.log('Note: Building with symbol_level:0 to reduce build size and time');
+            console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
+            console.log('Note: Limited to -j3 (via --ninja j:3) to prevent GitHub runner heartbeat loss on 4-core runners');
         }
         
         console.log(`Command: npm ${buildArgs.join(' ')}`);
@@ -188,40 +192,68 @@ class LinuxBuilder {
         console.log('\n=== Stage: Package ===');
         
         if (this.buildType === 'Release') {
-            // Release builds: grab distribution package from brave_dist/
-            console.log('Packaging Release build from brave_dist...');
+            // Release builds: grab distribution package
+            // Linux creates the zip in out/Release/ directly (via deb build script)
+            console.log('Packaging Release build...');
             
-            const braveDistDir = path.join(this.paths.srcDir, 'out', 'Release', 'brave_dist');
+            // Linux: The deb build script creates a zip in out/Release/ directly
+            // Format: brave-browser[-stable]-{version}-linux-{debarch}.zip
+            //   where debarch = "amd64" for x64, "arm64" for arm64
+            const outputDir = path.join(this.paths.srcDir, 'out', 'Release');
             
-            // Look for the distribution zip file
-            // Format: Brave-v{version}-linux-{arch}.zip
-            const expectedZipName = `Brave-v${this.braveVersion}-linux-${this.arch}.zip`;
-            const distZipPath = path.join(braveDistDir, expectedZipName);
+            // Strip any leading 'v' from version
+            const versionWithoutV = this.braveVersion.startsWith('v') 
+                ? this.braveVersion.substring(1) 
+                : this.braveVersion;
             
-            try {
-                await fs.access(distZipPath);
-                console.log(`✓ Found distribution package: ${expectedZipName}`);
-            } catch (e) {
-                console.log(`Distribution package not found at ${distZipPath}`);
-                console.log(`Listing contents of ${braveDistDir}...`);
+            // Convert arch to Debian arch naming
+            const debArch = this.arch === 'x64' ? 'amd64' : this.arch;
+            
+            // Try both possible filenames (with and without -stable suffix)
+            const possibleNames = [
+                `brave-browser-${versionWithoutV}-linux-${debArch}.zip`,
+                `brave-browser-stable-${versionWithoutV}-linux-${debArch}.zip`
+            ];
+            
+            let distZipPath = null;
+            let expectedZipName = null;
+            
+            for (const name of possibleNames) {
+                const testPath = path.join(outputDir, name);
                 try {
-                    const files = await fs.readdir(braveDistDir);
-                    console.log('Files in brave_dist:', files);
-                    // Try to find any .zip file
-                    const zipFile = files.find(f => f.endsWith('.zip'));
+                    await fs.access(testPath);
+                    distZipPath = testPath;
+                    expectedZipName = name;
+                    break;
+                } catch (e) {
+                    // Try next name
+                }
+            }
+            
+            if (distZipPath) {
+                console.log(`✓ Found distribution package: ${expectedZipName}`);
+            } else {
+                // Fallback: search for any brave-browser*.zip in out/Release/
+                console.log(`Distribution package not found with expected names`);
+                console.log(`Looking for: ${possibleNames.join(', ')}`);
+                console.log(`Searching in ${outputDir}...`);
+                try {
+                    const files = await fs.readdir(outputDir);
+                    console.log('Files in out/Release:', files.filter(f => f.endsWith('.zip')));
+                    // Try to find any brave-browser*.zip file
+                    const zipFile = files.find(f => f.startsWith('brave-browser') && f.endsWith('.zip') && !f.includes('symbols'));
                     if (zipFile) {
                         console.log(`Using found zip file: ${zipFile}`);
-                        const foundZipPath = path.join(braveDistDir, zipFile);
-                        const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.zip`;
-                        const packagePath = path.join(this.paths.workDir, packageName);
-                        await fs.copyFile(foundZipPath, packagePath);
-                        console.log('✓ Package copied successfully');
-                        return { packagePath, packageName };
+                        distZipPath = path.join(outputDir, zipFile);
+                        expectedZipName = zipFile;
                     }
                 } catch (e2) {
-                    console.error('Error listing brave_dist:', e2.message);
+                    console.error('Error listing out/Release:', e2.message);
                 }
-                throw new Error(`Distribution package not found: ${expectedZipName}`);
+                
+                if (!distZipPath) {
+                    throw new Error(`Distribution package not found. Expected one of: ${possibleNames.join(', ')}`);
+                }
             }
             
             // Copy to work directory with standardized name

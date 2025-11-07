@@ -234,19 +234,17 @@ class BuildOrchestrator {
         }
 
         // Stage 2: npm run build
+        // Note: For Release builds, create_dist is now unified with build (--target=create_dist)
+        // so we go directly to PACKAGE stage after successful build
         if (currentStage === STAGES.BUILD || await this.builder.getCurrentStage() === STAGES.BUILD) {
             const buildResult = await this.builder.runBuild();
             
             if (buildResult.success) {
-                // For Release builds, go to BUILD_DIST stage; for Component, go to PACKAGE
-                if (this.buildType === 'Release') {
-                    await this.builder.setStage(STAGES.BUILD_DIST);
-                    await diskAnalyzer.analyze('post-build');
-                } else {
-                    await this.builder.setStage(STAGES.PACKAGE);
-                    await diskAnalyzer.analyze('post-build');
-                    return true;
-                }
+                // Both Release and Component builds go directly to PACKAGE stage
+                // (Release builds include create_dist in the unified build command)
+                await this.builder.setStage(STAGES.PACKAGE);
+                await diskAnalyzer.analyze('post-build');
+                return true;
             } else if (buildResult.timedOut) {
                 console.log('Build timed out, will resume in next run');
                 return false;
@@ -256,28 +254,13 @@ class BuildOrchestrator {
             }
         }
 
-        // Stage 3: create_dist (Release builds only)
+        // Stage 3: BUILD_DIST stage is deprecated (kept for backward compatibility with old checkpoints)
+        // If we somehow end up here from an old checkpoint, skip directly to PACKAGE
         if (currentStage === STAGES.BUILD_DIST || await this.builder.getCurrentStage() === STAGES.BUILD_DIST) {
-            // Check if builder has runBuildDist method
-            if (typeof this.builder.runBuildDist !== 'function') {
-                console.log('Builder does not support runBuildDist, skipping to package stage');
-                await this.builder.setStage(STAGES.PACKAGE);
-                return true;
-            }
-            
-            const distResult = await this.builder.runBuildDist();
-            
-            if (distResult.success) {
-                await this.builder.setStage(STAGES.PACKAGE);
-                await diskAnalyzer.analyze('post-dist');
-                return true;
-            } else if (distResult.timedOut) {
-                console.log('create_dist timed out, will resume in next run');
-                return false;
-            } else {
-                console.log('create_dist failed, will retry in next run');
-                return false;
-            }
+            console.log('BUILD_DIST stage is deprecated (create_dist is now unified with build)');
+            console.log('Skipping directly to PACKAGE stage...');
+            await this.builder.setStage(STAGES.PACKAGE);
+            return true;
         }
 
         // If we're at package stage, build was successful

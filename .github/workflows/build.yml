@@ -691,6 +691,44 @@ jobs:
             echo "ℹ️  Release publishing is disabled"
           fi
       
+      - name: Generate checksums and signatures
+        if: ${{ inputs.publish_release }}
+        run: |
+          echo "=== Generating SHA256 checksums ==="
+          cd ./artifacts
+          
+          # Generate SHA256 for all release archives (only .zip for release builds)
+          find . -type f -name "*.zip" | while read -r file; do
+            echo "Generating checksum for: $file"
+            sha256sum "$file" | sed 's|./||' > "$file.sha256"
+            echo "Created: $file.sha256"
+          done
+          
+          echo ""
+          echo "=== Generated checksums ==="
+          find . -name "*.sha256" -exec cat {} \;
+      
+      - name: Sign checksums with GPG (optional)
+        if: ${{ inputs.publish_release && secrets.GPG_PRIVATE_KEY != '' }}
+        run: |
+          echo "=== Setting up GPG ==="
+          # Import GPG key from secrets
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          
+          echo "=== Signing checksums ==="
+          cd ./artifacts
+          
+          # Sign all checksum files
+          find . -name "*.sha256" | while read -r file; do
+            echo "Signing: $file"
+            gpg --batch --yes --armor --detach-sign "$file"
+            echo "Created: $file.asc"
+          done
+          
+          echo ""
+          echo "=== Generated signatures ==="
+          find . -name "*.asc" -exec ls -lh {} \;
+      
       - name: Upload combined artifacts for release
         uses: actions/upload-artifact@v4
         with:
@@ -770,8 +808,9 @@ jobs:
           prerelease: false
           fail_on_unmatched_files: true
           files: |
-            ./release/**/*.tar.xz
             ./release/**/*.zip
+            ./release/**/*.sha256
+            ./release/**/*.asc
       
       - name: Release published
         run: |

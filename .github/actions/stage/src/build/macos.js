@@ -113,15 +113,19 @@ class MacOSBuilder {
         let buildArgs;
         if (this.buildType === 'Release') {
             // Release: build browser and create distribution package in one go
-            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing', '--gn', 'symbol_level:0'];
+            // Limit to 3 jobs to prevent runner heartbeat starvation on 4-core GitHub macOS runners
+            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing', '--ninja', 'j:3', '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build Release with create_dist (unified)...');
             console.log('Note: Now unified since macOS Xcode initialization is fixed');
-            console.log('Note: Building with symbol_level:0 to reduce build size and time');
+            console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
+            console.log('Note: Limited to -j3 (via --ninja j:3) to prevent GitHub runner heartbeat loss on 4-core runners');
         } else {
             // Component: just build
-            buildArgs = ['run', 'build', '--', '--gn', 'symbol_level:0'];
+            // Limit to 3 jobs to prevent runner heartbeat starvation on 4-core GitHub macOS runners
+            buildArgs = ['run', 'build', '--', '--ninja', 'j:3', '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build (component)...');
-            console.log('Note: Building with symbol_level:0 to reduce build size and time');
+            console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
+            console.log('Note: Limited to -j3 (via --ninja j:3) to prevent GitHub runner heartbeat loss on 4-core runners');
         }
         
         console.log(`Command: npm ${buildArgs.join(' ')}`);
@@ -178,30 +182,35 @@ class MacOSBuilder {
         console.log('\n=== Stage: Package ===');
         
         if (this.buildType === 'Release') {
-            // Release builds: grab distribution package from brave_dist/
-            console.log('Packaging Release build from brave_dist...');
+            // Release builds: grab distribution package from dist/
+            console.log('Packaging Release build from dist...');
             
-            const braveDistDir = path.join(this.paths.srcDir, 'out', 'Release', 'brave_dist');
+            // macOS: create_dist creates zip in out/Release/dist/
+            const distDir = path.join(this.paths.srcDir, 'out', 'Release', 'dist');
             
             // Look for the distribution zip file
-            // Format: Brave-v{version}-darwin-{arch}.zip
-            const expectedZipName = `Brave-v${this.braveVersion}-darwin-${this.arch}.zip`;
-            const distZipPath = path.join(braveDistDir, expectedZipName);
+            // Format: brave-v{version}-darwin-{arch}.zip (lowercase "brave", single v)
+            // Strip any leading 'v' from version to avoid double-v
+            const versionWithoutV = this.braveVersion.startsWith('v') 
+                ? this.braveVersion.substring(1) 
+                : this.braveVersion;
+            const expectedZipName = `brave-v${versionWithoutV}-darwin-${this.arch}.zip`;
+            const distZipPath = path.join(distDir, expectedZipName);
             
             try {
                 await fs.access(distZipPath);
                 console.log(`✓ Found distribution package: ${expectedZipName}`);
             } catch (e) {
                 console.log(`Distribution package not found at ${distZipPath}`);
-                console.log(`Listing contents of ${braveDistDir}...`);
+                console.log(`Listing contents of ${distDir}...`);
                 try {
-                    const files = await fs.readdir(braveDistDir);
-                    console.log('Files in brave_dist:', files);
-                    // Try to find any .zip or .dmg file
-                    const distFile = files.find(f => f.endsWith('.zip') || f.endsWith('.dmg'));
+                    const files = await fs.readdir(distDir);
+                    console.log('Files in dist:', files.filter(f => f.endsWith('.zip') || f.endsWith('.dmg')));
+                    // Try to find any .zip or .dmg file (look for brave-*.zip or brave-*.dmg)
+                    const distFile = files.find(f => f.startsWith('brave-') && (f.endsWith('.zip') || f.endsWith('.dmg')) && !f.includes('symbols'));
                     if (distFile) {
                         console.log(`Using found distribution file: ${distFile}`);
-                        const foundDistPath = path.join(braveDistDir, distFile);
+                        const foundDistPath = path.join(distDir, distFile);
                         const ext = distFile.endsWith('.zip') ? 'zip' : 'dmg';
                         const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.${ext}`;
                         const packagePath = path.join(this.paths.workDir, packageName);
@@ -210,7 +219,7 @@ class MacOSBuilder {
                         return { packagePath, packageName };
                     }
                 } catch (e2) {
-                    console.error('Error listing brave_dist:', e2.message);
+                    console.error('Error listing dist:', e2.message);
                 }
                 throw new Error(`Distribution package not found: ${expectedZipName}`);
             }

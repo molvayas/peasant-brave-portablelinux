@@ -19,6 +19,14 @@ inputs:
     description: 'Target architecture (x64, arm64)'
     required: false
     default: 'x64'
+  build_type:
+    description: 'Build type (Component or Release)'
+    required: false
+    default: 'Component'
+  env_config:
+    description: '.env configuration content for brave-core'
+    required: false
+    default: ''
 
 outputs:
   finished:

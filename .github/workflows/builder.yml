@@ -39,7 +39,7 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ inputs.platform == 'linux' && 'ubuntu-latest' || inputs.platform == 'macos' && 'macos-latest' || 'windows-latest' }}
+    runs-on: ${{ inputs.platform == 'linux' && 'ubuntu-20.04' || inputs.platform == 'macos' && 'macos-latest' || 'windows-2022' }}
     
     steps:
       - name: Checkout repository
