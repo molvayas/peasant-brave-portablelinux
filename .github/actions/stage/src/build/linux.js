@@ -464,6 +464,30 @@ class LinuxBuilder {
                 ignoreReturnCode: true
             });
         }
+        
+        // Install sysroot for cross-compilation if needed
+        const os = require('os');
+        const hostArch = os.arch(); // 'x64', 'arm64', etc.
+        
+        if (this.arch !== hostArch) {
+            console.log(`\n=== Installing sysroot for cross-compilation (host: ${hostArch}, target: ${this.arch}) ===`);
+            const sysrootScript = path.join(this.paths.srcDir, 'build', 'linux', 'sysroot_scripts', 'install-sysroot.py');
+            
+            // Map our arch names to Chromium's sysroot arch names
+            const sysrootArch = this.arch === 'x64' ? 'amd64' : this.arch;
+            
+            await exec.exec('python3', [
+                sysrootScript,
+                `--arch=${sysrootArch}`
+            ], {
+                cwd: this.paths.srcDir,
+                ignoreReturnCode: true
+            });
+            
+            console.log(`✓ Sysroot for ${this.arch} installed`);
+        } else {
+            console.log(`Native build (host arch matches target arch: ${this.arch}), no sysroot needed`);
+        }
     }
 
     async _cleanupAfterInit() {
