@@ -120,23 +120,27 @@ class LinuxBuilder {
         console.log(`Remaining time calculated: ${timing.remainingHours} hours`);
         console.log(`Final timeout: ${timing.timeoutMinutes} minutes (${timing.remainingHours} hours)`);
         
+        // Detect available CPU threads and leave 1 free for runner heartbeat
+        const os = require('os');
+        const cpuCount = os.cpus().length;
+        const ninjaJobs = Math.max(1, cpuCount - 1);
+        console.log(`System has ${cpuCount} CPU threads, using ${ninjaJobs} for build`);
+        
         // Build command based on buildType
         let buildArgs;
         if (this.buildType === 'Release') {
             // Release: build browser and create distribution package in one go
-            // Limit to 3 jobs to prevent runner heartbeat starvation on 4-core GitHub runners
-            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing', '--ninja', 'j:3', '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
+            buildArgs = ['run', 'build', 'Release', '--', '--target=create_dist', '--skip_signing', '--ninja', `j:${ninjaJobs}`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build Release with create_dist (unified)...');
             console.log('Note: Unified for consistency with macOS after Xcode initialization fix');
             console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
-            console.log('Note: Limited to -j3 (via --ninja j:3) to prevent GitHub runner heartbeat loss on 4-core runners');
+            console.log(`Note: Using ${ninjaJobs} parallel jobs (${cpuCount} threads - 1 for runner heartbeat)`);
         } else {
             // Component: just build
-            // Limit to 3 jobs to prevent runner heartbeat starvation on 4-core GitHub runners
-            buildArgs = ['run', 'build', '--', '--ninja', 'j:3', '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
+            buildArgs = ['run', 'build', '--', '--ninja', `j:${ninjaJobs}`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build (component)...');
             console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
-            console.log('Note: Limited to -j3 (via --ninja j:3) to prevent GitHub runner heartbeat loss on 4-core runners');
+            console.log(`Note: Using ${ninjaJobs} parallel jobs (${cpuCount} threads - 1 for runner heartbeat)`);
         }
         
         console.log(`Command: npm ${buildArgs.join(' ')}`);
