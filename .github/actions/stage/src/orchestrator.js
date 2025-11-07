@@ -334,15 +334,15 @@ class BuildOrchestrator {
                 }
                 
                 console.log(`\nCreating multi-volume checkpoint artifact: ${checkpointArtifactName}...`);
+                const volumeSize = this.builder.config.volumeSize;
                 console.log('This will:');
-                console.log('  1. Create 5GB tar volumes');
+                console.log(`  1. Create ${volumeSize} tar volumes`);
                 console.log('  2. Compress each volume with zstd');
                 console.log('  3. Upload compressed volume');
                 console.log('  4. Delete volume files immediately');
                 console.log('  5. Repeat for each volume\n');
                 
                 const tarCommand = this.builder.config.tarCommand || 'tar';
-                const volumeSize = this.builder.config.volumeSize;
                 const volumeCount = await createMultiVolumeArchive(
                     'build-state',
                     this.builder.paths.workDir,
