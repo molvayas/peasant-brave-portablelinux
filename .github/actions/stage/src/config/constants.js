@@ -18,7 +18,7 @@ const TIMEOUTS = {
         MIN_BUILD_TIME: 5 * 60 * 1000,       // 5 minutes
     },
     'linux-wsl': {
-        MAX_BUILD_TIME: 5  * 60 * 1000,  // 5 hours (more time for WSL overhead + larger builds)
+        MAX_BUILD_TIME: 6 * 60 * 1000,  // 5 hours (more time for WSL overhead + larger builds)
         MIN_BUILD_TIME: 5 * 60 * 1000,       // 5 minutes
     },
     macos: {
@@ -239,7 +239,6 @@ function getTimeouts(platform) {
         return {
             MAX_BUILD_TIME: TIMEOUTS.MAX_BUILD_TIME,
             MIN_BUILD_TIME: TIMEOUTS.MIN_BUILD_TIME,
-            MIN_DIST_BUILD_TIME: TIMEOUTS.MIN_DIST_BUILD_TIME,
             CLEANUP_WAIT: TIMEOUTS.CLEANUP_WAIT,
             SYNC_WAIT: TIMEOUTS.SYNC_WAIT
         };
@@ -249,7 +248,6 @@ function getTimeouts(platform) {
     return {
         MAX_BUILD_TIME: platformTimeouts.MAX_BUILD_TIME || TIMEOUTS.MAX_BUILD_TIME,
         MIN_BUILD_TIME: platformTimeouts.MIN_BUILD_TIME || TIMEOUTS.MIN_BUILD_TIME,
-        MIN_DIST_BUILD_TIME: platformTimeouts.MIN_DIST_BUILD_TIME || TIMEOUTS.MIN_DIST_BUILD_TIME,
         FALLBACK_TIMEOUT: platformTimeouts.FALLBACK_TIMEOUT, // Windows-specific
         CLEANUP_WAIT: TIMEOUTS.CLEANUP_WAIT,
         SYNC_WAIT: TIMEOUTS.SYNC_WAIT

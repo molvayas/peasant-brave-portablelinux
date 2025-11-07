@@ -181,15 +181,13 @@ jobs:
           export INPUT_BUILD_TYPE="${{ inputs.build_type }}"
           export INPUT_ENV_CONFIG="${{ secrets.BRAVE_ENV_CONFIG }}"
           
-          # Convert Windows GITHUB_OUTPUT path to WSL path
-          if [ -n "$GITHUB_OUTPUT" ]; then
-            GITHUB_OUTPUT=$(wslpath -u "$GITHUB_OUTPUT")
-            export GITHUB_OUTPUT
-            echo "Using GITHUB_OUTPUT: $GITHUB_OUTPUT"
-          else
+          # GITHUB_OUTPUT is already converted by WSLENV with /p flag
+          # Just ensure it's set, don't convert again (would cause /mnt/d/mnt/d/...)
+          if [ -z "$GITHUB_OUTPUT" ]; then
             export GITHUB_OUTPUT="/tmp/github_output"
             touch "$GITHUB_OUTPUT"
           fi
+          echo "Using GITHUB_OUTPUT: $GITHUB_OUTPUT"
           
           export RUNNER_TEMP="${RUNNER_TEMP:-/tmp}"
           export HOME="/home/runner"
