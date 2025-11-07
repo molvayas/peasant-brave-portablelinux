@@ -709,11 +709,19 @@ jobs:
           find . -name "*.sha256" -exec cat {} \;
       
       - name: Sign checksums with GPG (optional)
-        if: ${{ inputs.publish_release && secrets.GPG_PRIVATE_KEY != '' }}
+        if: ${{ inputs.publish_release }}
+        env:
+          GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
+          if [ -z "$GPG_KEY" ]; then
+            echo "⚠️  GPG_PRIVATE_KEY secret not configured - skipping signature generation"
+            echo "To enable GPG signing, add GPG_PRIVATE_KEY to repository secrets"
+            exit 0
+          fi
+          
           echo "=== Setting up GPG ==="
           # Import GPG key from secrets
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          echo "$GPG_KEY" | gpg --batch --import
           
           echo "=== Signing checksums ==="
           cd ./artifacts
