@@ -68,10 +68,10 @@ else
     SIZE=$(du -h "$COMPLETED_VOLUME" | cut -f1)
     echo "[Volume Script] Volume size: $SIZE" >&2
     
-    # Compress with zstd
-    echo "[Volume Script] Compressing with zstd..." >&2
+    # Compress with zstd (limit to 2 threads to avoid starving runner)
+    echo "[Volume Script] Compressing with zstd (using 2 threads)..." >&2
     COMPRESSED="${COMPLETED_VOLUME}.zst"
-    zstd -${COMPRESSION_LEVEL} -T0 --rm "$COMPLETED_VOLUME" -o "$COMPRESSED" 2>&1 | sed 's/^/[zstd] /' >&2
+    zstd -${COMPRESSION_LEVEL} -T2 --rm "$COMPLETED_VOLUME" -o "$COMPRESSED" 2>&1 | sed 's/^/[zstd] /' >&2
     
     COMPRESSED_SIZE=$(du -h "$COMPRESSED" | cut -f1)
     echo "[Volume Script] Compressed to: $COMPRESSED_SIZE" >&2

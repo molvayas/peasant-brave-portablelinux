@@ -268,10 +268,10 @@ async function _processFinalVolume(tempDir, tarArchivePath, processedVolumesFile
         console.log(`[Main] ✓ Found unprocessed final volume (${sizeGB} GB)`);
         console.log(`[Main] Processing final volume ${volumeCount + 1}...`);
         
-        // Compress with zstd
+        // Compress with zstd (limit to 2 threads to avoid starving runner)
         const compressedPath = `${finalVolumePath}.zst`;
-        console.log(`[Main] Compressing with zstd...`);
-        await exec.exec('zstd', [`-${ARCHIVE.COMPRESSION_LEVEL}`, '-T0', '--rm', finalVolumePath, '-o', compressedPath], {
+        console.log(`[Main] Compressing with zstd (using 2 threads)...`);
+        await exec.exec('zstd', [`-${ARCHIVE.COMPRESSION_LEVEL}`, '-T2', '--rm', finalVolumePath, '-o', compressedPath], {
             env: {
                 ...process.env,
                 LC_ALL: 'C'
@@ -447,8 +447,8 @@ async function _downloadFirstVolume(tempDir, volumesDir, manifest, artifact) {
     const firstCompressed = firstFiles.find(f => f.endsWith('.zst'));
     const firstCompressedPath = path.join(firstDownloadPath, firstCompressed);
     
-    console.log('Decompressing first volume...');
-    await exec.exec('zstd', ['-d', '--rm', firstCompressedPath, '-o', firstVolumePath], {
+    console.log('Decompressing first volume (using 2 threads)...');
+    await exec.exec('zstd', ['-d', '-T2', '--rm', firstCompressedPath, '-o', firstVolumePath], {
         env: {
             ...process.env,
             LC_ALL: 'C'

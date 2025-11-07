@@ -35,8 +35,8 @@ async function downloadAndDecompress(volumeNum, artifactName, outputPath, tempDi
         
         const compressedPath = path.join(tempDownload, compressedFile);
         
-        console.error(`[Download] Decompressing to ${path.basename(outputPath)}...`);
-        await exec('zstd', ['-d', '--rm', compressedPath, '-o', outputPath]);
+        console.error(`[Download] Decompressing to ${path.basename(outputPath)} (using 2 threads)...`);
+        await exec('zstd', ['-d', '-T2', '--rm', compressedPath, '-o', outputPath]);
         
         console.error(`[Download] ✓ Volume ${volumeNum} ready`);
         

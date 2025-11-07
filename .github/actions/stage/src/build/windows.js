@@ -116,11 +116,11 @@ class WindowsBuilder {
             remainingTime = timeouts.MIN_BUILD_TIME;
         }
         
-        // Detect available CPU threads and leave 1 free for runner heartbeat
+        // Detect available CPU threads and use N+1 for optimal parallelism
         const os = require('os');
         const cpuCount = os.cpus().length;
-        const ninjaJobs = Math.max(1, cpuCount - 1);
-        console.log(`System has ${cpuCount} CPU threads, using ${ninjaJobs} for build`);
+        const ninjaJobs = cpuCount + 1;
+        console.log(`System has ${cpuCount} CPU threads, using ${ninjaJobs} parallel jobs for build`);
         
         // Build command based on buildType
         let buildArgs;
@@ -131,14 +131,14 @@ class WindowsBuilder {
             console.log(`Note: Building for ${this.arch} architecture`);
             console.log('Note: Unified for consistency with macOS after Xcode initialization fix');
             console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
-            console.log(`Note: Using ${ninjaJobs} parallel jobs (${cpuCount} threads - 1 for runner heartbeat)`);
+            console.log(`Note: Using ${ninjaJobs} parallel jobs (${cpuCount} threads + 1 for I/O overlap)`);
         } else {
             // Component: just build
             buildArgs = ['run', 'build', '--', '--target_arch=' + this.arch, '--ninja', `j:${ninjaJobs}`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build (component)...');
             console.log(`Note: Building for ${this.arch} architecture`);
             console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
-            console.log(`Note: Using ${ninjaJobs} parallel jobs (${cpuCount} threads - 1 for runner heartbeat)`);
+            console.log(`Note: Using ${ninjaJobs} parallel jobs (${cpuCount} threads + 1 for I/O overlap)`);
         }
         
         console.log(`Final timeout: ${(remainingTime / 60000).toFixed(0)} minutes`);
