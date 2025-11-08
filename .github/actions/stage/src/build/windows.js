@@ -125,14 +125,12 @@ class WindowsBuilder {
             console.log(`Note: Building for ${this.arch} architecture`);
             console.log('Note: Unified for consistency with macOS after Xcode initialization fix');
             console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
-            console.log(`Note: Using ${ninjaJobs} parallel jobs (${cpuCount} threads + 1 for I/O overlap)`);
         } else {
             // Component: just build
             buildArgs = ['run', 'build', '--', '--target_arch=' + this.arch, '--ninja', `l:3.5`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build (component)...');
             console.log(`Note: Building for ${this.arch} architecture`);
             console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
-            console.log(`Note: Using ${ninjaJobs} parallel jobs (${cpuCount} threads + 1 for I/O overlap)`);
         }
         
         console.log(`Final timeout: ${(remainingTime / 60000).toFixed(0)} minutes`);
