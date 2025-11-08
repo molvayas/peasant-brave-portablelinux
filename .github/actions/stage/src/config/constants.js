@@ -48,7 +48,7 @@ const PLATFORMS = {
         nodeModulesCache: '/home/runner/.npm',
         executable: 'brave',
         packageFormat: 'tar.xz',
-        volumeSize: '3G',
+        volumeSize: '2G',
         dependencies: [
             'build-essential', 'git', 'python3', 'python3-pip',
             'python-setuptools', 'python3-distutils', 'python-is-python3',
