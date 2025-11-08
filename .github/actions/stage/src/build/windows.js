@@ -116,17 +116,11 @@ class WindowsBuilder {
             remainingTime = timeouts.MIN_BUILD_TIME;
         }
         
-        // Detect available CPU threads and use N+1 for optimal parallelism
-        const os = require('os');
-        const cpuCount = os.cpus().length;
-        const ninjaJobs = cpuCount + 1;
-        console.log(`System has ${cpuCount} CPU threads, using ${ninjaJobs} parallel jobs for build`);
-        
         // Build command based on buildType
         let buildArgs;
         if (this.buildType === 'Release') {
             // Release: build browser and create distribution package in one go
-            buildArgs = ['run', 'build', 'Release', '--', '--target_arch=' + this.arch, '--target=create_dist', '--skip_signing', '--ninja', `j:${ninjaJobs}`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
+            buildArgs = ['run', 'build', 'Release', '--', '--target_arch=' + this.arch, '--target=create_dist', '--skip_signing', '--ninja', `l:3.5`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build Release with create_dist (unified)...');
             console.log(`Note: Building for ${this.arch} architecture`);
             console.log('Note: Unified for consistency with macOS after Xcode initialization fix');
@@ -134,7 +128,7 @@ class WindowsBuilder {
             console.log(`Note: Using ${ninjaJobs} parallel jobs (${cpuCount} threads + 1 for I/O overlap)`);
         } else {
             // Component: just build
-            buildArgs = ['run', 'build', '--', '--target_arch=' + this.arch, '--ninja', `j:${ninjaJobs}`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
+            buildArgs = ['run', 'build', '--', '--target_arch=' + this.arch, '--ninja', `l:3.5`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0'];
             console.log('Running npm run build (component)...');
             console.log(`Note: Building for ${this.arch} architecture`);
             console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
