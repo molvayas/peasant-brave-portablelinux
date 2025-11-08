@@ -86,6 +86,10 @@ class BuildOrchestrator {
             if (buildSuccess) {
                 // Package and upload final artifact
                 await this._packageAndUpload();
+                
+                // Clean up checkpoint artifacts (no longer needed)
+                await this._cleanupCheckpointArtifacts();
+                
                 core.setOutput('finished', true);
             } else {
                 // Create checkpoint artifact for next stage
@@ -397,6 +401,80 @@ class BuildOrchestrator {
             } else {
                 console.warn(`Warning: Failed to delete .env file: ${e.message}`);
             }
+        }
+    }
+    
+    /**
+     * Clean up checkpoint artifacts after successful build completion
+     */
+    async _cleanupCheckpointArtifacts() {
+        console.log('\n=== Cleaning Up Checkpoint Artifacts ===');
+        console.log('Build completed successfully, checkpoint artifacts no longer needed');
+        
+        const checkpointArtifactName = `${ARTIFACTS.BUILD_STATE}-${this.platform}-${this.arch}`;
+        let deletedCount = 0;
+        
+        try {
+            if (this.platform === 'windows') {
+                // Windows: single artifact
+                console.log(`Deleting Windows checkpoint artifact: ${checkpointArtifactName}...`);
+                try {
+                    await this.artifact.deleteArtifact(checkpointArtifactName);
+                    deletedCount++;
+                    console.log(`  ✓ Deleted ${checkpointArtifactName}`);
+                } catch (e) {
+                    if (e.message && e.message.includes('not found')) {
+                        console.log(`  ℹ No checkpoint artifact found (clean slate)`);
+                    } else {
+                        console.warn(`  ⚠️ Could not delete ${checkpointArtifactName}: ${e.message}`);
+                    }
+                }
+            } else {
+                // Linux/macOS: manifest + volume artifacts
+                console.log(`Deleting checkpoint artifacts: ${checkpointArtifactName}-*...`);
+                
+                // Delete manifest
+                try {
+                    await this.artifact.deleteArtifact(`${checkpointArtifactName}-manifest`);
+                    deletedCount++;
+                    console.log(`  ✓ Deleted ${checkpointArtifactName}-manifest`);
+                } catch (e) {
+                    if (e.message && e.message.includes('not found')) {
+                        console.log(`  ℹ No manifest found (clean slate)`);
+                    } else {
+                        console.warn(`  ⚠️ Could not delete manifest: ${e.message}`);
+                    }
+                }
+                
+                // Delete volume artifacts
+                for (let i = 1; i <= ARCHIVE.MAX_VOLUMES; i++) {
+                    const volumeName = `${checkpointArtifactName}-vol${i.toString().padStart(3, '0')}`;
+                    try {
+                        await this.artifact.deleteArtifact(volumeName);
+                        deletedCount++;
+                        console.log(`  ✓ Deleted ${volumeName}`);
+                    } catch (e) {
+                        // Stop when we hit a non-existent volume (we've deleted all that exist)
+                        if (e.message && e.message.includes('not found')) {
+                            // No more volumes to delete
+                            break;
+                        } else {
+                            console.warn(`  ⚠️ Could not delete ${volumeName}: ${e.message}`);
+                        }
+                    }
+                }
+            }
+            
+            if (deletedCount > 0) {
+                console.log(`✓ Cleaned up ${deletedCount} checkpoint artifact(s)`);
+            } else {
+                console.log('ℹ No checkpoint artifacts to clean up (build completed on first run)');
+            }
+            
+        } catch (e) {
+            // Don't fail the build if cleanup fails
+            console.warn(`Warning: Failed to clean up checkpoint artifacts: ${e.message}`);
+            console.warn('This is not critical - artifacts will expire based on retention policy');
         }
     }
 }
