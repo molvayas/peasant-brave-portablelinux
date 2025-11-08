@@ -14,7 +14,7 @@ const TIMEOUTS = {
     
     // Platform-specific timeout overrides
     linux: {
-        MAX_BUILD_TIME: 4 * 60 * 60 * 1000,  // 4 hours
+        MAX_BUILD_TIME: (5 * 60 * 60 + 30 * 60) * 1000,  // 4 hours
         MIN_BUILD_TIME: 5 * 60 * 1000,       // 5 minutes
     },
     'linux-wsl': {
@@ -22,11 +22,11 @@ const TIMEOUTS = {
         MIN_BUILD_TIME: 5 * 60 * 1000,       // 5 minutes
     },
     macos: {
-        MAX_BUILD_TIME: 4 * 60 * 60 * 1000,  // 4 hours
+        MAX_BUILD_TIME: (5 * 60 * 60 + 20 * 60) * 1000,  // 4 hours
         MIN_BUILD_TIME: 5 * 60 * 1000,       // 5 minutes
     },
     windows: {
-        MAX_BUILD_TIME: 4 * 60 * 60 * 1000,  // 4 hours
+        MAX_BUILD_TIME: (4 * 60 * 60 + 45*60) * 1000,  // 4 hours
         MIN_BUILD_TIME: 10 * 60 * 1000,      // 10 minutes (Windows needs more time)
         FALLBACK_TIMEOUT: 15 * 60 * 1000,    // 15 minutes fallback
     }
