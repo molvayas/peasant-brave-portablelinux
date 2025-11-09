@@ -112,13 +112,29 @@ class MacOSBuilder {
         // Build command based on buildType
         let buildArgs;
         if (this.buildType === 'Release') {
-            // Release: build browser and create distribution package in one go
-            buildArgs = ['run', 'build', 'Release', '--', '--target_arch=' + this.arch, '--target=create_dist', '--skip_signing', '--ninja', `j:5`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0', '--gn', 'should_generate_symbols:false'];
-            console.log('Running npm run build Release with create_dist (unified)...');
+            // Release: build browser and create distribution package in one go with full optimizations
+            buildArgs = [
+                'run', 'build', 'Release', '--', 
+                '--target_arch=' + this.arch, 
+                '--target=create_dist', 
+                '--skip_signing', 
+                '--ninja', `j:5`,
+                // Critical optimization flags
+                '--gn', 'is_official_build:true',      // CRITICAL: Enables all optimizations
+                '--gn', 'is_debug:false',              // No debug code
+                '--gn', 'dcheck_always_on:false',      // Disable expensive debug checks
+                '--gn', 'enable_stripping:true',       // Strip symbols from final binary
+                // Symbol generation flags (keep disabled for smaller/faster builds)
+                '--gn', 'symbol_level:0',
+                '--gn', 'blink_symbol_level:0',
+                '--gn', 'v8_symbol_level:0',
+                '--gn', 'should_generate_symbols:false'
+            ];
+            console.log('Running npm run build Release with create_dist (OPTIMIZED)...');
             console.log(`Note: Building for ${this.arch} architecture`);
-            console.log('Note: Now unified since macOS Xcode initialization is fixed');
-            console.log('Note: Building with symbol_level=0, blink_symbol_level=0, v8_symbol_level=0 to reduce build size and time');
-            console.log('Note: Disabled should_generate_symbols to skip dSYM generation');
+            console.log('Note: ✨ Official build optimizations ENABLED (fast & small binary)');
+            console.log('Note: is_official_build=true, is_debug=false, dcheck_always_on=false');
+            console.log('Note: Symbol generation disabled for maximum performance');
         } else {
             // Component: just build
             buildArgs = ['run', 'build', '--', '--target_arch=' + this.arch, '--ninja', `j:5`, '--gn', 'symbol_level:0', '--gn', 'blink_symbol_level:0', '--gn', 'v8_symbol_level:0', '--gn', 'should_generate_symbols:false'];
