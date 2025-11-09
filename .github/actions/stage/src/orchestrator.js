@@ -334,6 +334,7 @@ class BuildOrchestrator {
                 for (let i = 1; i <= ARCHIVE.MAX_VOLUMES; i++) {
                     try {
                         await this.artifact.deleteArtifact(`${checkpointArtifactName}-vol${i.toString().padStart(3, '0')}`);
+                        await new Promise(r => setTimeout(r, 1000));
                     } catch (e) { /* Ignore error */ }
                 }
                 

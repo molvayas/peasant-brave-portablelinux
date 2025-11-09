@@ -14,7 +14,7 @@ const TIMEOUTS = {
     
     // Platform-specific timeout overrides
     linux: {
-        MAX_BUILD_TIME: (5 * 60 * 60 + 30 * 60) * 1000,  // 4 hours
+        MAX_BUILD_TIME: (5 * 60 * 60 + 20 * 60) * 1000,
         MIN_BUILD_TIME: 5 * 60 * 1000,       // 5 minutes
     },
     'linux-wsl': {
@@ -35,7 +35,7 @@ const TIMEOUTS = {
 // Archive configuration
 const ARCHIVE = {
     COMPRESSION_LEVEL: 3,
-    MAX_VOLUMES: 20,
+    MAX_VOLUMES: 40,
     RETENTION_DAYS: 1,
     FINAL_RETENTION_DAYS: 7
 };
