@@ -129,11 +129,14 @@ class LinuxBuilder {
                 '--target_arch=' + this.arch, 
                 '--target=create_dist', 
                 '--skip_signing',
-                // Critical optimization flags
-                '--gn', 'is_official_build:true',      // CRITICAL: Enables all optimizations
+                // Critical optimization flags (these trigger -O3 and LTO automatically)
+                '--gn', 'is_official_build:true',      // CRITICAL: Enables -O3, LTO, and all optimizations
                 '--gn', 'is_debug:false',              // No debug code
                 '--gn', 'dcheck_always_on:false',      // Disable expensive debug checks
                 '--gn', 'enable_stripping:true',       // Strip symbols from final binary
+                // Optional: Explicitly enable LTO (already enabled by is_official_build, but being paranoid)
+                '--gn', 'use_thin_lto:true',           // Enable ThinLTO for faster linking
+                '--gn', 'thin_lto_enable_optimizations:true',  // Maximize LTO optimizations
                 // Symbol generation flags (keep disabled for smaller/faster builds)
                 '--gn', 'symbol_level:0',
                 '--gn', 'blink_symbol_level:0',
