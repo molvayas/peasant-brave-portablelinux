@@ -134,6 +134,7 @@ class LinuxBuilder {
                 '--gn', 'is_debug:false',              // No debug code
                 '--gn', 'dcheck_always_on:false',      // Disable expensive debug checks
                 '--gn', 'enable_stripping:true',       // Strip symbols from final binary
+                '--gn', 'brave_channel:dev',           // Brand as Dev to distinguish from official Brave
                 // Optional: Explicitly enable LTO (already enabled by is_official_build, but being paranoid)
                 '--gn', 'use_thin_lto:true',           // Enable ThinLTO for faster linking
                 '--gn', 'thin_lto_enable_optimizations:true',  // Maximize LTO optimizations
@@ -141,7 +142,9 @@ class LinuxBuilder {
                 '--gn', 'symbol_level:0',
                 '--gn', 'blink_symbol_level:0',
                 '--gn', 'v8_symbol_level:0',
-                '--gn', 'should_generate_symbols:false'
+                '--gn', 'should_generate_symbols:false',
+                // Disable PageGraph (research/debugging feature - not needed for production)
+                '--gn', 'enable_brave_page_graph:false'
             ];
             console.log('Running npm run build Release with create_dist (OPTIMIZED)...');
             console.log(`Note: Building for ${this.arch} architecture`);

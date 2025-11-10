@@ -76,6 +76,18 @@ else
     COMPRESSED_SIZE=$(du -h "$COMPRESSED" | cut -f1)
     echo "[Volume Script] Compressed to: $COMPRESSED_SIZE" >&2
     
+    # Encrypt with GPG if password is set
+    UPLOAD_FILE="$COMPRESSED"
+    if [ -n "$ARCHIVE_PASSWORD" ]; then
+        echo "[Volume Script] 🔒 Encrypting with GPG (AES256)..." >&2
+        ENCRYPTED="${COMPRESSED}.gpg"
+        echo "$ARCHIVE_PASSWORD" | gpg --batch --yes --passphrase-fd 0 --symmetric --cipher-algo AES256 --output "$ENCRYPTED" "$COMPRESSED" 2>&1 | sed 's/^/[gpg] /' >&2
+        rm -f "$COMPRESSED"
+        UPLOAD_FILE="$ENCRYPTED"
+        ENCRYPTED_SIZE=$(du -h "$ENCRYPTED" | cut -f1)
+        echo "[Volume Script] Encrypted to: $ENCRYPTED_SIZE" >&2
+    fi
+    
     # Upload using Node.js script
     echo "[Volume Script] Uploading volume ${COMPLETED_VOLUME_NUM}..." >&2
     VOLUME_NUM=$(printf "%03d" $COMPLETED_VOLUME_NUM)
@@ -84,7 +96,7 @@ else
     # Explicitly disable debug mode to suppress ::debug:: messages from upload-artifact
     set +e
     RUNNER_DEBUG="" ACTIONS_STEP_DEBUG="" NODE_PATH="${TEMP_DIR}/node_modules" node "${SCRIPTS_DIR}/upload-volume.js" \
-        "$COMPRESSED" \
+        "$UPLOAD_FILE" \
         "${ARTIFACT_NAME}-vol${VOLUME_NUM}" \
         "$TEMP_DIR" \
         2>&1 | sed 's/^/[upload] /' >&2
@@ -97,7 +109,7 @@ else
     fi
     
     echo "[Volume Script] Upload successful, cleaning up..." >&2
-    rm -f "$COMPRESSED"
+    rm -f "$UPLOAD_FILE"
     echo "[Volume Script] Volume ${COMPLETED_VOLUME_NUM} processed successfully" >&2
     
     # Track processed volume

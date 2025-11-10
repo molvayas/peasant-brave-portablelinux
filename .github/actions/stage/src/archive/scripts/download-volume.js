@@ -19,6 +19,7 @@ const path = require('path');
 async function downloadAndDecompress(volumeNum, artifactName, outputPath, tempDir) {
     const artifact = new DefaultArtifactClient();
     const tempDownload = path.join(tempDir, `dl-${volumeNum}`);
+    const password = process.env.ARCHIVE_PASSWORD;
     
     try {
         await fs.mkdir(tempDownload, {recursive: true});
@@ -28,12 +29,42 @@ async function downloadAndDecompress(volumeNum, artifactName, outputPath, tempDi
         await artifact.downloadArtifact(volumeInfo.artifact.id, {path: tempDownload});
         
         const files = await fs.readdir(tempDownload);
-        const compressedFile = files.find(f => f.endsWith('.zst'));
-        if (!compressedFile) {
-            throw new Error('No .zst file found in downloaded artifact');
+        
+        // Check for encrypted file first (.zst.gpg), then unencrypted (.zst)
+        let downloadedFile = files.find(f => f.endsWith('.zst.gpg'));
+        let isEncrypted = !!downloadedFile;
+        
+        if (!downloadedFile) {
+            downloadedFile = files.find(f => f.endsWith('.zst'));
         }
         
-        const compressedPath = path.join(tempDownload, compressedFile);
+        if (!downloadedFile) {
+            throw new Error('No .zst or .zst.gpg file found in downloaded artifact');
+        }
+        
+        let compressedPath = path.join(tempDownload, downloadedFile);
+        
+        // Decrypt if file is encrypted
+        if (isEncrypted) {
+            if (!password) {
+                throw new Error('Archive is encrypted but ARCHIVE_PASSWORD is not set');
+            }
+            
+            console.error(`[Download] 🔒 Decrypting with GPG...`);
+            const decryptedPath = compressedPath.replace('.gpg', '');
+            
+            // Use bash to handle password piping
+            await exec('bash', ['-c', `echo "$ARCHIVE_PASSWORD" | gpg --batch --yes --passphrase-fd 0 --decrypt --output "${decryptedPath}" "${compressedPath}"`], {
+                env: {
+                    ...process.env,
+                    ARCHIVE_PASSWORD: password
+                }
+            });
+            
+            await fs.unlink(compressedPath);
+            compressedPath = decryptedPath;
+            console.error(`[Download] ✓ Decrypted`);
+        }
         
         console.error(`[Download] Decompressing to ${path.basename(outputPath)} (using 2 threads)...`);
         await exec('zstd', ['-d', '-T2', '--rm', compressedPath, '-o', outputPath]);

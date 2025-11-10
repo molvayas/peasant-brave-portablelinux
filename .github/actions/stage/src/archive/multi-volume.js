@@ -30,11 +30,19 @@ const SCRIPTS_DIR = path.join(__dirname, 'scripts');
 async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifact, artifactName, options = {}) {
     const tarCommand = options.tarCommand || 'tar';
     const volumeSize = options.volumeSize || '5G'; // Default to 5G if not provided
+    const password = process.env.ARCHIVE_PASSWORD;
+    
     console.log('=== Creating Multi-Volume Archive ===');
     console.log(`Volume size: ${volumeSize}`);
     console.log(`Base name: ${archiveBaseName}`);
     console.log(`Working directory: ${workDir}`);
     console.log(`Paths to archive: ${paths.join(', ')}`);
+    
+    if (password) {
+        console.log('🔒 Password protection: ENABLED (using GPG AES256)');
+    } else {
+        console.log('⚠️  Password protection: DISABLED (no ARCHIVE_PASSWORD env var)');
+    }
     
     const tempDir = path.join(workDir, 'tar-temp');
     await io.mkdirP(tempDir);
@@ -43,7 +51,7 @@ async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifac
     const processedVolumesFile = path.join(tempDir, 'processed-volumes.txt');
     
     // Verify dependencies
-    await _verifyDependencies();
+    await _verifyDependencies(password);
     
     console.log('\nStarting multi-volume tar creation...');
     console.log(`Archive base: ${tarArchivePath}`);
@@ -118,7 +126,15 @@ async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifac
  */
 async function extractMultiVolumeArchive(workDir, artifact, artifactName, options = {}) {
     const tarCommand = options.tarCommand || 'tar';
+    const password = process.env.ARCHIVE_PASSWORD;
+    
     console.log('=== Extracting Multi-Volume Archive ===');
+    
+    if (password) {
+        console.log('🔒 Password protection: ENABLED (using GPG AES256)');
+    } else {
+        console.log('⚠️  Password protection: DISABLED (no ARCHIVE_PASSWORD env var)');
+    }
     
     const tempDir = path.join(workDir, 'extract-temp');
     await io.mkdirP(tempDir);
@@ -187,7 +203,7 @@ async function extractMultiVolumeArchive(workDir, artifact, artifactName, option
 /**
  * Verify required dependencies are installed
  */
-async function _verifyDependencies() {
+async function _verifyDependencies(password) {
     console.log('Verifying dependencies...');
     
     // Check zstd
@@ -196,6 +212,16 @@ async function _verifyDependencies() {
         console.log('✓ zstd is available');
     } catch (e) {
         throw new Error('zstd is not installed! Please install zstd before running.');
+    }
+    
+    // Check gpg if password is set
+    if (password) {
+        try {
+            await exec.exec('gpg', ['--version'], {ignoreReturnCode: false});
+            console.log('✓ gpg is available');
+        } catch (e) {
+            throw new Error('gpg is not installed! Password protection requires gpg.');
+        }
     }
 }
 
@@ -217,11 +243,15 @@ async function _setupVolumeProcessing(tempDir, artifactName, processedVolumesFil
  */
 async function _createWrapperScript(wrapperPath, tempDir, artifactName, processedVolumesFile, compressionLevel) {
     const actualScriptPath = path.join(SCRIPTS_DIR, 'next-volume.sh');
+    const password = process.env.ARCHIVE_PASSWORD || '';
     
     const wrapper = `#!/bin/bash
 # Set locale to avoid "Illegal byte sequence" errors on macOS
 export LC_ALL=C
 export LANG=C
+
+# Export password for GPG encryption (if set)
+export ARCHIVE_PASSWORD="${password}"
 
 # Wrapper script that calls the actual volume processing script with arguments
 exec "${actualScriptPath}" "${tempDir}" "${artifactName}" "${processedVolumesFile}" "${compressionLevel}" "${SCRIPTS_DIR}"
@@ -282,6 +312,30 @@ async function _processFinalVolume(tempDir, tarArchivePath, processedVolumesFile
         const compressedSizeGB = (compressedStats.size / (1024 * 1024 * 1024)).toFixed(2);
         console.log(`[Main] Compressed to ${compressedSizeGB} GB`);
         
+        // Encrypt with GPG if password is set
+        let uploadPath = compressedPath;
+        const password = process.env.ARCHIVE_PASSWORD;
+        if (password) {
+            const encryptedPath = `${compressedPath}.gpg`;
+            console.log(`[Main] 🔒 Encrypting with GPG (AES256)...`);
+            
+            // Use gpg with passphrase from stdin
+            await exec.exec('bash', ['-c', `echo "$ARCHIVE_PASSWORD" | gpg --batch --yes --passphrase-fd 0 --symmetric --cipher-algo AES256 --output "${encryptedPath}" "${compressedPath}"`], {
+                env: {
+                    ...process.env,
+                    LC_ALL: 'C',
+                    ARCHIVE_PASSWORD: password
+                }
+            });
+            
+            await fs.unlink(compressedPath);
+            uploadPath = encryptedPath;
+            
+            const encryptedStats = await fs.stat(encryptedPath);
+            const encryptedSizeGB = (encryptedStats.size / (1024 * 1024 * 1024)).toFixed(2);
+            console.log(`[Main] Encrypted to ${encryptedSizeGB} GB`);
+        }
+        
         // Upload
         const finalVolumeNum = volumeCount + 1;
         const volNumFormatted = finalVolumeNum.toString().padStart(3, '0');
@@ -292,7 +346,7 @@ async function _processFinalVolume(tempDir, tarArchivePath, processedVolumesFile
         const uploadScriptPath = path.join(SCRIPTS_DIR, 'upload-volume.js');
         const uploadExitCode = await exec.exec('node', [
             uploadScriptPath,
-            compressedPath,
+            uploadPath,
             finalArtifactName,
             tempDir
         ], {
@@ -307,7 +361,7 @@ async function _processFinalVolume(tempDir, tarArchivePath, processedVolumesFile
         
         if (uploadExitCode === 0) {
             console.log(`[Main] ✓ Successfully uploaded final volume`);
-            await fs.unlink(compressedPath);
+            await fs.unlink(uploadPath);
             volumeCount++;
         } else {
             throw new Error(`Upload failed with exit code ${uploadExitCode}`);
@@ -409,11 +463,15 @@ async function _setupExtraction(tempDir, volumesDir, manifest, artifactName) {
 async function _createExtractionWrapperScript(wrapperPath, baseName, volumesDir, volumeCount, artifactBase, tempDir) {
     const actualScriptPath = path.join(SCRIPTS_DIR, 'next-volume-extract.sh');
     const envFilePath = path.join(tempDir, 'actions-env.sh');
+    const password = process.env.ARCHIVE_PASSWORD || '';
     
     const wrapper = `#!/bin/bash
 # Set locale to avoid "Illegal byte sequence" errors on macOS
 export LC_ALL=C
 export LANG=C
+
+# Export password for GPG decryption (if set)
+export ARCHIVE_PASSWORD="${password}"
 
 # Source environment variables
 if [ -f "${envFilePath}" ]; then
@@ -444,8 +502,43 @@ async function _downloadFirstVolume(tempDir, volumesDir, manifest, artifact) {
     await artifact.downloadArtifact(volumeInfo.artifact.id, {path: firstDownloadPath});
     
     const firstFiles = await fs.readdir(firstDownloadPath);
-    const firstCompressed = firstFiles.find(f => f.endsWith('.zst'));
-    const firstCompressedPath = path.join(firstDownloadPath, firstCompressed);
+    
+    // Check for encrypted file first (.zst.gpg), then unencrypted (.zst)
+    let firstDownloadedFile = firstFiles.find(f => f.endsWith('.zst.gpg'));
+    const isEncrypted = !!firstDownloadedFile;
+    
+    if (!firstDownloadedFile) {
+        firstDownloadedFile = firstFiles.find(f => f.endsWith('.zst'));
+    }
+    
+    if (!firstDownloadedFile) {
+        throw new Error('No .zst or .zst.gpg file found in first volume artifact');
+    }
+    
+    let firstCompressedPath = path.join(firstDownloadPath, firstDownloadedFile);
+    
+    // Decrypt if file is encrypted
+    if (isEncrypted) {
+        const password = process.env.ARCHIVE_PASSWORD;
+        if (!password) {
+            throw new Error('Archive is encrypted but ARCHIVE_PASSWORD is not set');
+        }
+        
+        console.log('🔒 Decrypting first volume with GPG...');
+        const decryptedPath = firstCompressedPath.replace('.gpg', '');
+        
+        await exec.exec('bash', ['-c', `echo "$ARCHIVE_PASSWORD" | gpg --batch --yes --passphrase-fd 0 --decrypt --output "${decryptedPath}" "${firstCompressedPath}"`], {
+            env: {
+                ...process.env,
+                LC_ALL: 'C',
+                ARCHIVE_PASSWORD: password
+            }
+        });
+        
+        await fs.unlink(firstCompressedPath);
+        firstCompressedPath = decryptedPath;
+        console.log('✓ Decrypted');
+    }
     
     console.log('Decompressing first volume (using 2 threads)...');
     await exec.exec('zstd', ['-d', '-T2', '--rm', firstCompressedPath, '-o', firstVolumePath], {

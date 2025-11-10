@@ -32,6 +32,9 @@ on:
       BRAVE_ENV_CONFIG:
         description: 'Contents of .env file for Brave build (API keys, secrets, etc.)'
         required: false
+      ARCHIVE_PASSWORD:
+        description: 'Password for encrypting build artifacts (optional, for enhanced security)'
+        required: false
     outputs:
       finished:
         description: 'Whether the build has finished'
@@ -73,6 +76,8 @@ jobs:
       - name: Run build stage ${{ inputs.stage }} (${{ inputs.platform }}-${{ inputs.arch }})
         id: stage
         uses: ./.github/actions/stage
+        env:
+          ARCHIVE_PASSWORD: ${{ secrets.ARCHIVE_PASSWORD }}
         with:
           finished: ${{ inputs.finished }}
           from_artifact: ${{ inputs.from_artifact }}

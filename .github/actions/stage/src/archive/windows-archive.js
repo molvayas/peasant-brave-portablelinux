@@ -25,6 +25,13 @@ async function createWindowsCheckpoint(workDir, paths, artifact, artifactName) {
     console.log(`Paths to archive: ${paths.join(', ')}`);
     
     const artifactPath = path.join(workDir, 'artifacts.7z');
+    const password = process.env.ARCHIVE_PASSWORD;
+    
+    if (password) {
+        console.log('🔒 Password protection: ENABLED');
+    } else {
+        console.log('⚠️  Password protection: DISABLED (no ARCHIVE_PASSWORD env var)');
+    }
     
     console.log('Creating 7z archive...');
     console.log('This may take 30-50 minutes depending on build state size');
@@ -44,11 +51,13 @@ async function createWindowsCheckpoint(workDir, paths, artifact, artifactName) {
         
         // Create 7z archive with strong compression
         // -t7z = 7z format
-        // -mx=9 = maximum compression
+        // -mx=3 = fast compression
         // -mtc=on = preserve timestamps
-        // -mmt=1 = single-threaded (more reliable)
-        // -m0=LZMA2:d1536m:fb64 = LZMA2 with 1536MB dictionary
-        await exec.exec('7z', [
+        // -mmt=3 = 3 threads
+        // -m0=LZMA2:d256m:fb64 = LZMA2 with 256MB dictionary
+        // -p = password (if set)
+        // -mhe=on = encrypt headers (hide file names)
+        const args = [
             'a', '-t7z',
             artifactPath,
             ...fullPaths,
@@ -56,7 +65,14 @@ async function createWindowsCheckpoint(workDir, paths, artifact, artifactName) {
             '-mtc=on',
             '-mmt=3',
             '-m0=LZMA2:d256m:fb64'
-        ], {ignoreReturnCode: true});
+        ];
+        
+        if (password) {
+            args.push(`-p${password}`);
+            args.push('-mhe=on');  // Encrypt headers to hide filenames
+        }
+        
+        await exec.exec('7z', args, {ignoreReturnCode: true});
     } finally {
         // Stop disk space monitor
         clearInterval(monitorInterval);
@@ -114,6 +130,14 @@ async function extractWindowsCheckpoint(workDir, artifact, artifactName) {
     console.log(`Working directory: ${workDir}`);
     console.log(`Artifact name: ${artifactName}`);
     
+    const password = process.env.ARCHIVE_PASSWORD;
+    
+    if (password) {
+        console.log('🔒 Password protection: ENABLED');
+    } else {
+        console.log('⚠️  Password protection: DISABLED (no ARCHIVE_PASSWORD env var)');
+    }
+    
     // Download artifact
     console.log('Downloading checkpoint artifact...');
     try {
@@ -127,13 +151,19 @@ async function extractWindowsCheckpoint(workDir, artifact, artifactName) {
     const artifactPath = path.join(workDir, 'artifacts.7z');
     console.log(`Extracting ${artifactPath}...`);
 
-    await exec.exec('7z', [
+    const args = [
         'x',
         artifactPath,
         `-o${workDir}`,
         '-y',               // Yes to all prompts
         '-mmt=3'            // Limit to 3 threads
-    ], {ignoreReturnCode: true});
+    ];
+    
+    if (password) {
+        args.push(`-p${password}`);
+    }
+    
+    await exec.exec('7z', args, {ignoreReturnCode: true});
     
     console.log('✓ Checkpoint extracted');
     
