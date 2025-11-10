@@ -129,16 +129,17 @@ class WindowsBuilder {
                 // Critical optimization flags (these trigger -O3 and LTO automatically)
                 '--gn', 'is_official_build:true',      // CRITICAL: Enables -O3, LTO, and all optimizations
                 '--gn', 'is_debug:false',              // No debug code
+                '--gn', 'is_component_build:false',         // Optimize WebUI for faster loading
                 '--gn', 'dcheck_always_on:false',      // Disable expensive debug checks
                 '--gn', 'enable_stripping:true',       // Strip symbols from final binary
                 // Optional: Explicitly enable LTO (already enabled by is_official_build, but being paranoid)
-                '--gn', 'use_thin_lto:true',           // Enable ThinLTO for faster linking
-                '--gn', 'thin_lto_enable_optimizations:true',  // Maximize LTO optimizations
+                // '--gn', 'use_thin_lto:true',           // Enable ThinLTO for faster linking
+                // '--gn', 'thin_lto_enable_optimizations:true',  // Maximize LTO optimizations
                 // Symbol generation flags (keep disabled for smaller/faster builds)
-                '--gn', 'symbol_level:0',
-                '--gn', 'blink_symbol_level:0',
-                '--gn', 'v8_symbol_level:0',
-                '--gn', 'should_generate_symbols:false'
+                '--gn', 'symbol_level:1',
+                // '--gn', 'blink_symbol_level:0',
+                // '--gn', 'v8_symbol_level:0',
+                // '--gn', 'should_generate_symbols:false'
             ];
             console.log('Running npm run build Release with create_dist (OPTIMIZED)...');
             console.log(`Note: Building for ${this.arch} architecture`);
