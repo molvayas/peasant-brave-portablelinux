@@ -268,12 +268,16 @@ function getPlatformConfig(platform, arch = null) {
         throw new Error(`Unsupported platform: ${platform}. Supported: ${Object.keys(PLATFORMS).join(', ')}`);
     }
     
-    // Windows ARM64: Use C: drive instead of D: drive (ARM64 Windows images don't have D: drive)
+    // Windows ARM64: Use user-writable directory on C: drive (ARM64 Windows images don't have D: drive)
     if (platformKey === 'windows' && arch && arch.toLowerCase() === 'arm64') {
-        console.log('WINDOWS ARM64: Using C: drive instead of D: drive (ARM64 Windows images don\'t have D: drive)');
+        // Use USERPROFILE environment variable for robust path resolution
+        // Falls back to C:\Users\runner\brave-build if USERPROFILE is not set
+        const userProfile = process.env.USERPROFILE || 'C:\\Users\\runner';
+        const workDir = path.join(userProfile, 'brave-build');
+        console.log(`WINDOWS ARM64: Using user-writable directory: ${workDir} (ARM64 Windows images don't have D: drive)`);
         return {
             ...config,
-            workDir: 'C:\\brave-build'
+            workDir: workDir
         };
     }
     

@@ -1971,13 +1971,25 @@ jobs:
           # Generate SHA256 for all release archives (only .zip for release builds)
           find . -type f -name "*.zip" | while read -r file; do
             echo "Generating checksum for: $file"
-            sha256sum "$file" | sed 's|./||' > "$file.sha256"
+            checksum=$(sha256sum "$file" | sed 's|./||')
+            echo "$checksum" > "$file.sha256"
             echo "Created: $file.sha256"
+            # Echo the checksum for visibility in logs
+            echo "SHA256: $checksum"
           done
           
           echo ""
           echo "=== Generated checksums ==="
           find . -name "*.sha256" -exec cat {} \;
+          
+          echo ""
+          echo "=== Checksum Summary (for verification) ==="
+          find . -name "*.sha256" | while read -r checksum_file; do
+            artifact_file="${checksum_file%.sha256}"
+            checksum=$(cat "$checksum_file")
+            filename=$(basename "$artifact_file")
+            echo "$checksum  $filename"
+          done
       
       - name: Sign checksums with GPG (optional)
         if: ${{ inputs.publish_release }}
@@ -2057,13 +2069,6 @@ jobs:
           | 🪟 Windows x64 | ${{ inputs.build_windows_x64 && '✅ Built' || '⏭️ Skipped' }} | ${{ inputs.build_type }} |
           | 🪟 Windows arm64 | ${{ inputs.build_windows_arm64 && '✅ Built' || '⏭️ Skipped' }} | ${{ inputs.build_type }} |
           | 🪟 Windows x86 | ${{ inputs.build_windows_x86 && '✅ Built' || '⏭️ Skipped' }} | ${{ inputs.build_type }} |
-          
-          ## ⚙️ Build Optimizations
-          
-          - **Debug Symbols**: Disabled (`symbol_level=0`, `blink_symbol_level=0`, `v8_symbol_level=0`)
-          - **Parallelism**: Limited to 3 jobs (`-j3`) to prevent runner heartbeat loss
-          - **Build Stages**: 16 stages per platform (~18-20 min per stage, maximum reliability)
-          - **Linux Compatibility**: Built on Ubuntu 20.04 (GLIBC 2.31) for wider distro support
           
           ## 🔐 Security & Verification
           
