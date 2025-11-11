@@ -48,7 +48,7 @@ const TIMEOUTS = {
         MIN_BUILD_TIME: 5 * 60 * 1000,
     },
     windows: {
-        MAX_BUILD_TIME: (4 * 60 * 60 + 45 * 60) * 1000,  // 7z takes much more time than gnu-tar
+        MAX_BUILD_TIME: (4 * 60 * 60 + 30 * 60) * 1000,  // 7z takes much more time than gnu-tar
         MIN_BUILD_TIME: 10 * 60 * 1000,
         FALLBACK_TIMEOUT: 15 * 60 * 1000,
     }
