@@ -39,7 +39,7 @@ async function createMultiVolumeArchive(archiveBaseName, workDir, paths, artifac
     console.log(`Paths to archive: ${paths.join(', ')}`);
     
     if (password) {
-        console.log('🔒 Password protection: ENABLED (using GPG AES256)');
+        console.log('ENCRYPTED: Password protection: ENABLED (using GPG AES256)');
     } else {
         console.log('⚠️  Password protection: DISABLED (no ARCHIVE_PASSWORD env var)');
     }
@@ -131,7 +131,7 @@ async function extractMultiVolumeArchive(workDir, artifact, artifactName, option
     console.log('=== Extracting Multi-Volume Archive ===');
     
     if (password) {
-        console.log('🔒 Password protection: ENABLED (using GPG AES256)');
+        console.log('ENCRYPTED: Password protection: ENABLED (using GPG AES256)');
     } else {
         console.log('⚠️  Password protection: DISABLED (no ARCHIVE_PASSWORD env var)');
     }
@@ -317,7 +317,7 @@ async function _processFinalVolume(tempDir, tarArchivePath, processedVolumesFile
         const password = process.env.ARCHIVE_PASSWORD;
         if (password) {
             const encryptedPath = `${compressedPath}.gpg`;
-            console.log(`[Main] 🔒 Encrypting with GPG (AES256)...`);
+            console.log(`[Main] ENCRYPTED: Encrypting with GPG (AES256)...`);
             
             // Use gpg with passphrase from stdin
             await exec.exec('bash', ['-c', `echo "$ARCHIVE_PASSWORD" | gpg --batch --yes --passphrase-fd 0 --symmetric --cipher-algo AES256 --output "${encryptedPath}" "${compressedPath}"`], {
@@ -524,7 +524,7 @@ async function _downloadFirstVolume(tempDir, volumesDir, manifest, artifact) {
             throw new Error('Archive is encrypted but ARCHIVE_PASSWORD is not set');
         }
         
-        console.log('🔒 Decrypting first volume with GPG...');
+        console.log('ENCRYPTED: Decrypting first volume with GPG...');
         const decryptedPath = firstCompressedPath.replace('.gpg', '');
         
         await exec.exec('bash', ['-c', `echo "$ARCHIVE_PASSWORD" | gpg --batch --yes --passphrase-fd 0 --decrypt --output "${decryptedPath}" "${firstCompressedPath}"`], {

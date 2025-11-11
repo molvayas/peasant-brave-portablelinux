@@ -28,7 +28,7 @@ async function createWindowsCheckpoint(workDir, paths, artifact, artifactName) {
     const password = process.env.ARCHIVE_PASSWORD;
     
     if (password) {
-        console.log('🔒 Password protection: ENABLED');
+        console.log('ENCRYPTED: Password protection: ENABLED');
     } else {
         console.log('⚠️  Password protection: DISABLED (no ARCHIVE_PASSWORD env var)');
     }
@@ -133,7 +133,7 @@ async function extractWindowsCheckpoint(workDir, artifact, artifactName) {
     const password = process.env.ARCHIVE_PASSWORD;
     
     if (password) {
-        console.log('🔒 Password protection: ENABLED');
+        console.log('ENCRYPTED: Password protection: ENABLED');
     } else {
         console.log('⚠️  Password protection: DISABLED (no ARCHIVE_PASSWORD env var)');
     }

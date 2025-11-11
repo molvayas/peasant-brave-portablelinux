@@ -258,7 +258,7 @@ function getPlatformConfig(platform) {
 
     // Auto-detect WSL for Linux platform and switch to optimized config
     if (platformKey === 'linux' && isWSL()) {
-        console.log('🐧 Detected WSL environment - using linux-wsl configuration');
+        console.log('LINUX: Detected WSL environment - using linux-wsl configuration');
         platformKey = 'linux-wsl';
     }
 

@@ -47,18 +47,18 @@ async function cleanupDirectories(srcDir, cleanupPaths) {
         // This allows patterns like 'android_*' to match 'android_sdk', 'android_tools', etc.
         if (relativePath.includes('*')) {
             const fullPattern = path.join(srcDir, relativePath);
-            console.log(`🗑️  Removing glob pattern: ${fullPattern}`);
+            console.log(`CLEANUP: Removing glob pattern: ${fullPattern}`);
             // Use bash -c to enable glob expansion for rm command
             await exec.exec('bash', ['-c', `rm -rf ${fullPattern}`], {ignoreReturnCode: true});
         } else {
             // Direct path removal for non-glob patterns
             const fullPath = path.join(srcDir, relativePath);
-            console.log(`🗑️  Removing directory: ${fullPath}`);
+            console.log(`CLEANUP: Removing directory: ${fullPath}`);
             await exec.exec('rm', ['-rf', fullPath], {ignoreReturnCode: true});
         }
     }
 
-    console.log('\n📊 Checking disk space after cleanup...');
+    console.log('\nDISK: Checking disk space after cleanup...');
     const homeDir = process.env.HOME || '/home/runner';
     await exec.exec('df', ['-h', homeDir], {ignoreReturnCode: true});
     console.log('===========================================\n');

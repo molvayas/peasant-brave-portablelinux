@@ -66,7 +66,7 @@ async function downloadAndDecompress(volumeNum, artifactName, outputPath, tempDi
                 throw new Error('Archive is encrypted but ARCHIVE_PASSWORD is not set');
             }
 
-            console.error(`[Download] 🔒 Decrypting with GPG...`);
+            console.error(`[Download] ENCRYPTED: Decrypting with GPG...`);
             const decryptedPath = compressedPath.replace('.gpg', '');
 
             // Password is passed via stdin using bash pipe

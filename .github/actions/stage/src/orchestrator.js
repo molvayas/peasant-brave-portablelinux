@@ -119,14 +119,14 @@ class BuildOrchestrator {
             // PHASE 1: ENVIRONMENT SETUP
             // ============================================================================
 
-            console.log('🚀 Phase 1: Setting up build environment...');
+            console.log('PHASE1: Setting up build environment...');
             await this._setupEnvironment();
 
             // ============================================================================
             // PHASE 2: BUILD STAGE EXECUTION
             // ============================================================================
 
-            console.log('🔨 Phase 2: Executing build stages...');
+            console.log('PHASE2: Executing build stages...');
             buildSuccess = await this._runBuildStages();
 
             // ============================================================================
@@ -134,31 +134,31 @@ class BuildOrchestrator {
             // ============================================================================
 
             if (buildSuccess) {
-                console.log('✅ Build completed successfully!');
+                console.log('✓ Build completed successfully!');
 
                 // Create and upload the final distributable package
-                console.log('📦 Creating final package...');
+                console.log('PACKAGING: Creating final package...');
                 await this._packageAndUpload();
 
                 // Remove checkpoint artifacts (no longer needed)
-                console.log('🧹 Cleaning up checkpoint artifacts...');
+                console.log('CLEANUP: Cleaning up checkpoint artifacts...');
                 await this._cleanupCheckpointArtifacts();
 
                 // Signal successful completion to GitHub Actions
                 core.setOutput('finished', true);
-                console.log('🎉 Build orchestration completed successfully');
+                console.log('SUCCESS: Build orchestration completed successfully');
 
             } else {
                 // ============================================================================
                 // PHASE 3: CHECKPOINT CREATION (ON TIMEOUT/FAILURE)
                 // ============================================================================
 
-                console.log('⏱️  Build timed out or failed - creating checkpoint for resumption...');
+                console.log('TIMEOUT: Build timed out or failed - creating checkpoint for resumption...');
                 await this._createCheckpoint();
 
                 // Signal that build needs continuation in next stage
                 core.setOutput('finished', false);
-                console.log('💾 Checkpoint created - build will resume in next stage');
+                console.log('CHECKPOINT: Checkpoint created - build will resume in next stage');
             }
 
         } catch (error) {
@@ -166,17 +166,17 @@ class BuildOrchestrator {
             // ERROR HANDLING WITH CHECKPOINT CREATION
             // ============================================================================
 
-            console.error(`💥 Build orchestration failed: ${error.message}`);
+            console.error(`ERROR: Build orchestration failed: ${error.message}`);
             console.error('Full error details:', error.stack);
 
             // Attempt to create a checkpoint even on errors to preserve progress
-            console.log('🛟 Attempting to create emergency checkpoint...');
+            console.log('EMERGENCY: Attempting to create emergency checkpoint...');
             try {
                 await this._createCheckpoint();
                 core.setOutput('finished', false);
                 console.log('⚠️  Emergency checkpoint created despite error');
             } catch (checkpointError) {
-                console.error(`❌ Failed to create emergency checkpoint: ${checkpointError.message}`);
+                console.error(`✗ Failed to create emergency checkpoint: ${checkpointError.message}`);
                 // Mark the entire GitHub Action as failed
                 core.setFailed(`Build failed: ${error.message}`);
             }

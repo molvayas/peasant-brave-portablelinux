@@ -177,7 +177,7 @@ class WindowsBuilder {
             ];
             console.log('Running npm run build Release with create_dist (OPTIMIZED)...');
             console.log(`Note: Building for ${this.arch} architecture`);
-            console.log('Note: ✨ Official build optimizations ENABLED (fast & small binary)');
+            console.log('Note: [OPT] Official build optimizations ENABLED (fast & small binary)');
             console.log('Note: is_official_build=true, is_debug=false, dcheck_always_on=false');
             console.log('Note: Symbol generation disabled for maximum performance');
         } else {
@@ -202,7 +202,7 @@ class WindowsBuilder {
             return {success: true, timedOut: false};
         } else if (buildCode === 999) {
             // Windows timeout code
-            console.log('⏱️ npm run build timed out - will resume in next stage');
+            console.log('TIMEOUT: npm run build timed out - will resume in next stage');
             
             // Check disk space before archiving
             console.log('\n=== Checking disk space ===');
@@ -534,7 +534,7 @@ class WindowsBuilder {
             let timedOut = false;
             
             const timer = setTimeout(async () => {
-                console.log(`\n⏱️ Timeout reached after ${(timeout / 60000).toFixed(0)} minutes`);
+                console.log(`\nTIMEOUT: Timeout reached after ${(timeout / 60000).toFixed(0)} minutes`);
                 console.log('Terminating build process...');
                 timedOut = true;
                 

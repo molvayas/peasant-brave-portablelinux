@@ -62,13 +62,13 @@ class LinuxBuilder {
         console.log(`Work directory: ${this.paths.workDir}`);
         
         if (this.isWSL) {
-            console.log('🐧 Running in WSL environment');
+            console.log('LINUX: Running in WSL environment');
             console.log(`Volume size for archives: ${this.config.volumeSize} (larger due to D: drive space)`);
             if (this.config.vhdSize) {
                 console.log(`Virtual disk: ${this.config.vhdSize} ext4 filesystem`);
             }
         } else {
-            console.log('🐧 Running on native Linux');
+            console.log('LINUX: Running on native Linux');
             console.log(`Volume size for archives: ${this.config.volumeSize}`);
         }
         
@@ -161,7 +161,7 @@ class LinuxBuilder {
             ];
             console.log('Running npm run build Release with create_dist (OPTIMIZED)...');
             console.log(`Note: Building for ${this.arch} architecture`);
-            console.log('Note: ✨ Official build optimizations ENABLED (fast & small binary)');
+            console.log('Note: [OPT] Official build optimizations ENABLED (fast & small binary)');
             console.log('Note: is_official_build=true, is_debug=false, dcheck_always_on=false');
             console.log('Note: Symbol generation disabled for maximum speed');
         } else {
@@ -185,7 +185,7 @@ class LinuxBuilder {
             return {success: true, timedOut: false};
         } else if (buildCode === 124) {
             // Timeout
-            console.log('⏱️ npm run build timed out - will resume in next stage');
+            console.log('TIMEOUT: npm run build timed out - will resume in next stage');
             
             // Check disk space before archiving
             console.log('\n=== Checking disk space ===');

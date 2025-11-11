@@ -80,7 +80,7 @@ else
     # Encrypt with GPG if password is set
     UPLOAD_FILE="$COMPRESSED"
     if [ -n "$ARCHIVE_PASSWORD" ]; then
-        echo "[Volume Script] 🔒 Encrypting with GPG (AES256)..." >&2
+        echo "[Volume Script] ENCRYPTED: Encrypting with GPG (AES256)..." >&2
         ENCRYPTED="${COMPRESSED}.gpg"
         echo "$ARCHIVE_PASSWORD" | gpg --batch --yes --passphrase-fd 0 --symmetric --cipher-algo AES256 --output "$ENCRYPTED" "$COMPRESSED" 2>&1 | sed 's/^/[gpg] /' >&2
         rm -f "$COMPRESSED"

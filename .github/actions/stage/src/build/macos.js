@@ -162,7 +162,7 @@ class MacOSBuilder {
             ];
             console.log('Running npm run build Release with create_dist (OPTIMIZED)...');
             console.log(`Note: Building for ${this.arch} architecture`);
-            console.log('Note: ✨ Official build optimizations ENABLED (fast & small binary)');
+            console.log('Note: [OPT] Official build optimizations ENABLED (fast & small binary)');
             console.log('Note: is_official_build=true, is_debug=false, dcheck_always_on=false');
             console.log('Note: Symbol generation disabled for maximum performance');
         } else {
@@ -188,7 +188,7 @@ class MacOSBuilder {
             return {success: true, timedOut: false};
         } else if (buildCode === 124) {
             // Timeout
-            console.log('⏱️ npm run build timed out - will resume in next stage');
+            console.log('TIMEOUT: npm run build timed out - will resume in next stage');
             
             // Check disk space before archiving
             console.log('\n=== Checking disk space ===');
@@ -541,7 +541,7 @@ class MacOSBuilder {
                 await fs.access(xcodePath);
                 console.log(`Found ${xcodePath}, selecting it...`);
                 await exec.exec('sudo', ['xcode-select', '--switch', xcodePath]);
-                console.log(`✅ Using ${xcodePath}`);
+                console.log(`✓ Using ${xcodePath}`);
                 xcodeSelected = true;
                 break;
             } catch (e) {

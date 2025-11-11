@@ -64,7 +64,7 @@ async function execWithTimeout(command, args, options = {}) {
     });
     
     if (exitCode === 124) {
-        console.log(`⏱️ Timeout reached after ${(timeoutSeconds / 60).toFixed(0)} minutes`);
+        console.log(`TIMEOUT: Timeout reached after ${(timeoutSeconds / 60).toFixed(0)} minutes`);
     }
     
     return exitCode;
