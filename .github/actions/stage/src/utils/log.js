@@ -1,10 +1,15 @@
 /**
- * Logging utilities
+ * Logging and output filtering utilities
+ *
+ * This module provides utilities for managing log output in GitHub Actions,
+ * particularly for filtering out verbose debug messages from external tools
+ * that would otherwise clutter the build logs.
  */
 
 /**
- * Filter out GitHub Actions artifact debug messages
- * This prevents verbose debug output from cluttering logs by intercepting process.stderr.
+ * Setup stderr filtering to suppress GitHub Actions artifact debug messages
+ *
+ * I don't remember why it's here.
  */
 function setupArtifactDebugFilter() {
     const originalStderrWrite = process.stderr.write;

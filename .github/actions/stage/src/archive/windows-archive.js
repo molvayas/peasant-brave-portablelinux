@@ -49,9 +49,9 @@ async function createWindowsCheckpoint(workDir, paths, artifact, artifactName) {
         // Build list of paths to archive
         const fullPaths = paths.map(p => path.join(workDir, p));
         
-        // Create 7z archive with strong compression
+        // Create 7z archive with fast compression (balanced speed/size)
         // -t7z = 7z format
-        // -mx=3 = fast compression
+        // -mx=3 = fast compression (level 3, balanced for large files)
         // -mtc=on = preserve timestamps
         // -mmt=3 = 3 threads
         // -m0=LZMA2:d256m:fb64 = LZMA2 with 256MB dictionary

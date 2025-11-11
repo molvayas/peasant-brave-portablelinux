@@ -1,5 +1,5 @@
 /**
- * Windows-specific build implementation for Brave Browser
+ * Windows-specific Brave Browser Builder
  */
 
 const exec = require('@actions/exec');
@@ -10,23 +10,36 @@ const child_process = require('child_process');
 const {getPlatformConfig, getBuildPaths, STAGES, getTimeouts} = require('../config/constants');
 
 class WindowsBuilder {
+    /**
+     * Initialize Windows-specific builder with Visual Studio integration
+     *
+     * Configures the builder for Windows development environment, including
+     * Visual Studio toolchain management and cross-architecture support.
+     *
+     * @param {string} braveVersion - Brave version tag to build (e.g., "v1.50.100")
+     * @param {string} arch - Target architecture (x64, arm64, x86)
+     */
     constructor(braveVersion, arch = 'x64') {
         this.braveVersion = braveVersion;
         this.arch = arch;
         this.platform = 'windows';
         this.config = getPlatformConfig(this.platform);
-        // buildType will be set by orchestrator after construction
-        this.buildType = 'Component';
-        // jobStartTime will be set by orchestrator after construction
-        this.jobStartTime = null;
-        // envConfig will be set by orchestrator after construction
-        this.envConfig = '';
-        // paths will be set after buildType is known
-        this.paths = null;
+
+        // These properties are set by the orchestrator after construction
+        this.buildType = 'Component';    // Component (dev) or Release (production)
+        this.jobStartTime = null;        // For timeout calculations
+        this.envConfig = '';             // .env file contents
+        this.paths = null;               // Build paths (set after buildType is known)
     }
     
     /**
-     * Initialize paths based on buildType
+     * Ensure build paths are initialized based on current buildType
+     *
+     * Build paths depend on buildType (Component vs Release) because Chromium
+     * organizes output directories differently for different build configurations.
+     * This method is called lazily to ensure paths are available when needed.
+     *
+     * @private
      */
     _ensurePaths() {
         if (!this.paths) {
@@ -35,7 +48,18 @@ class WindowsBuilder {
     }
 
     /**
-     * Initialize the build environment
+     * Initialize the complete Windows build environment
+     *
+     * Sets up everything needed for a Brave browser build on Windows, including:
+     * - Windows-specific environment variables for Visual Studio toolchain
+     * - depot_tools Python dependencies for Chromium build system
+     * - Brave source code checkout from GitHub
+     * - Node.js/npm dependencies for the build system
+     *
+     * The Visual Studio toolchain integration is critical as Chromium requires
+     * specific compiler versions and Windows SDK components.
+     *
+     * @returns {Promise<void>} Completes when environment is fully initialized
      */
     async initialize() {
         this._ensurePaths();
@@ -59,7 +83,18 @@ class WindowsBuilder {
     }
 
     /**
-     * Run npm run init stage
+     * Execute the npm run init stage - setup Chromium build environment
+     *
+     * This stage runs the Brave build system's initialization, which:
+     * 1. Downloads and sets up the Chromium source code and dependencies
+     * 2. Configures the GN build system with appropriate flags
+     * 3. Prepares the build directory structure
+     *
+     * Unlike Linux, Windows doesn't require running Chromium's install-build-deps.sh
+     * because Visual Studio Build Tools are pre-installed on Windows runners.
+     * The build tools are auto-detected by Chromium's build system.
+     *
+     * @returns {Promise<boolean>} true if initialization successful, false if failed
      */
     async runInit() {
         console.log('\n=== Stage: npm run init ===');
@@ -87,7 +122,11 @@ class WindowsBuilder {
     }
 
     /**
-     * Run npm run build stage with Windows-specific timeout handling
+     * Execute the npm run build stage
+     *
+     * @returns {Promise<{success: boolean, timedOut: boolean}>}
+     *         success: true if build completed successfully
+     *         timedOut: true if build timed out (can be resumed)
      */
     async runBuild() {
         this._ensurePaths();
@@ -128,20 +167,13 @@ class WindowsBuilder {
                 '--ninja', `j:6`,
                 // Critical optimization flags (these trigger -O3 and LTO automatically)
                 '--gn', 'is_official_build:true',      // CRITICAL: Enables -O3, LTO, and all optimizations
-                '--gn', 'is_debug:false',              // No debug code
                 '--gn', 'dcheck_always_on:false',      // Disable expensive debug checks
-                '--gn', 'enable_stripping:true',       // Strip symbols from final binary
-                '--gn', 'brave_channel:dev',           // Brand as Dev to distinguish from official Brave
-                // FORCE LTO on explicitly (paranoid mode - ensures it's enabled regardless of defaults)
-                '--gn', 'use_thin_lto:true',           // Force ThinLTO enabled
-                '--gn', 'thin_lto_enable_optimizations:true',  // Maximize LTO optimizations
-                // Symbol generation flags (keep disabled for smaller/faster builds)
+                // no thanks, we don't debug here
                 '--gn', 'symbol_level:0',
                 '--gn', 'blink_symbol_level:0',
                 '--gn', 'v8_symbol_level:0',
                 '--gn', 'should_generate_symbols:false',
-                // Disable PageGraph (research/debugging feature - not needed for production)
-                '--gn', 'enable_brave_page_graph:false'
+                '--gn', 'brave_p3a_enabled:false'
             ];
             console.log('Running npm run build Release with create_dist (OPTIMIZED)...');
             console.log(`Note: Building for ${this.arch} architecture`);
@@ -206,27 +238,13 @@ class WindowsBuilder {
         }
     }
 
-    /**
-     * Run create_dist stage (Release builds only)
-     * NOTE: As of the unified build approach, create_dist is now unified with runBuild()
-     * This method is kept for compatibility but just returns success.
-     */
-    async runBuildDist() {
-        this._ensurePaths();
-        console.log('\n=== Stage: create_dist (unified with build, no-op) ===');
-        
-        if (this.buildType !== 'Release') {
-            console.log('Skipping create_dist - not a Release build');
-            return {success: true, timedOut: false};
-        }
-        
-        console.log('create_dist already completed in unified build step');
-        console.log('✓ Distribution package already created');
-        return {success: true, timedOut: false};
-    }
 
     /**
-     * Package the built browser
+     * Package the compiled browser into distributable artifacts
+     *
+     * @returns {Promise<{packagePath: string, packageName: string}>}
+     *         packagePath: Absolute path to the created package file
+     *         packageName: Standardized package filename
      */
     async package() {
         this._ensurePaths();
@@ -409,9 +427,16 @@ class WindowsBuilder {
     }
 
     // ========================================================================
-    // Private methods
+    // Private methods - Windows-specific implementation details
     // ========================================================================
 
+    /**
+     * Setup Windows-specific environment variables
+     *
+     * I don't remember why it's here.
+     * 
+     * @private
+     */
     async _setupEnvironment() {
         console.log('Setting Windows-specific environment variables...');
         core.exportVariable('DEPOT_TOOLS_WIN_TOOLCHAIN', '0');
@@ -472,11 +497,25 @@ class WindowsBuilder {
 
     /**
      * Windows-specific timeout implementation using taskkill
-     * Gracefully terminates npm run build and waits for cleanup
-     * @param {string} command - Command to run
+     *
+     * Provides reliable timeout handling for long-running Windows processes.
+     * Uses taskkill to terminate entire process trees, which is necessary because
+     * Windows handles child processes and file handles differently than Unix systems.
+     *
+     * Process:
+     * 1. Spawns the command as a child process
+     * 2. Sets a timer for the specified timeout
+     * 3. On timeout: Uses taskkill /F /T to force-kill entire process tree
+     * 4. Waits for Windows to release file handles and locks
+     * 5. Returns exit code 999 to indicate timeout
+     *
+     * @private
+     * @param {string} command - Command to execute
      * @param {string[]} args - Command arguments
-     * @param {object} options - Options including cwd and timeout in milliseconds
-     * @returns {Promise<number>} Exit code (999 if timeout)
+     * @param {object} options - Execution options
+     * @param {string} options.cwd - Working directory
+     * @param {number} options.timeout - Timeout in milliseconds
+     * @returns {Promise<number>} Exit code (0 = success, 999 = timeout, other = command error)
      */
     async _execWithTimeout(command, args, options = {}) {
         const {cwd, timeout} = options;

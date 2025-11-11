@@ -1,11 +1,13 @@
 #!/bin/bash
 # Volume processing script called by tar during multi-volume archive extraction
 #
-# This script is called by tar when it needs the next volume
+# This script is called by tar when it needs the next volume (typically starting
+# from volume 2, since volume 1 is provided via -f flag). The script downloads
+# volumes on-demand as tar needs them.
 #
 # Environment variables provided by tar:
 #   TAR_ARCHIVE  - current archive name
-#   TAR_VOLUME   - volume number being requested (1-based)
+#   TAR_VOLUME   - volume number being requested (1-based, typically 2+)
 #   TAR_FD       - file descriptor to send volume path to tar
 #
 # Arguments:
@@ -29,7 +31,8 @@ TEMP_DIR="$5"
 SCRIPTS_DIR="$6"
 
 if [ -z "$TAR_VOLUME" ]; then
-    # First call - return volume 1 path
+    # Defensive: if tar calls script without TAR_VOLUME set, return volume 1
+    # (This may not happen in practice since volume 1 is provided via -f flag)
     VOLUME_NUM=1
     VOLUME_FILE="${VOLUMES_DIR}/${BASE_NAME}.tar"
     echo "[Extract] Returning volume 1: $VOLUME_FILE" >&2

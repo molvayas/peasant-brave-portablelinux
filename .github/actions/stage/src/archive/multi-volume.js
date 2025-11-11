@@ -179,7 +179,7 @@ async function extractMultiVolumeArchive(workDir, artifact, artifactName, option
     
     // Extract using multi-volume mode
     console.log('\n=== Extracting Multi-Volume Archive ===');
-    console.log(`Using ${tarCommand} to download subsequent volumes on-demand via the info script...`);
+    console.log(`Using ${tarCommand} to download subsequent volumes on-demand via the volume script (-F)...`);
     
     await exec.exec(tarCommand, ['-xM', '-f', firstVolumePath, '-F', extractScriptPath, '-C', workDir], {
         env: {

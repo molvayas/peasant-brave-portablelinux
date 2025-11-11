@@ -5,7 +5,8 @@
 # 
 # Environment variables provided by tar:
 #   TAR_ARCHIVE  - current archive name
-#   TAR_VOLUME   - current volume number (1-based)
+#   TAR_VOLUME   - next volume number tar is about to start (1-based)
+#                  When tar finishes volume N, it calls script with TAR_VOLUME=N+1
 #   TAR_FD       - file descriptor to send new volume name to tar
 #
 # Arguments:

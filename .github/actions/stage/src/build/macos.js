@@ -1,5 +1,5 @@
 /**
- * macOS-specific build implementation for Brave Browser
+ * macOS-specific Brave Browser Builder
  */
 
 const exec = require('@actions/exec');
@@ -10,23 +10,36 @@ const {cleanupDirectories} = require('../utils/disk');
 const {execWithTimeout, calculateBuildTimeout, waitAndSync} = require('../utils/exec');
 
 class MacOSBuilder {
+    /**
+     * Initialize macOS-specific builder with Apple ecosystem integration
+     *
+     * Configures the builder for macOS development environment, including
+     * Xcode toolchain management and ARM64 code signing preparation.
+     *
+     * @param {string} braveVersion - Brave version tag to build (e.g., "v1.50.100")
+     * @param {string} arch - Target architecture (x64 for Intel, arm64 for Apple Silicon)
+     */
     constructor(braveVersion, arch = 'x64') {
         this.braveVersion = braveVersion;
         this.arch = arch;
         this.platform = 'macos';
         this.config = getPlatformConfig(this.platform);
-        // buildType will be set by orchestrator after construction
-        this.buildType = 'Component';
-        // jobStartTime will be set by orchestrator after construction
-        this.jobStartTime = null;
-        // envConfig will be set by orchestrator after construction
-        this.envConfig = '';
-        // paths will be set after buildType is known
-        this.paths = null;
+
+        // These properties are set by the orchestrator after construction
+        this.buildType = 'Component';    // Component (dev) or Release (production)
+        this.jobStartTime = null;        // For timeout calculations
+        this.envConfig = '';             // .env file contents
+        this.paths = null;               // Build paths (set after buildType is known)
     }
     
     /**
-     * Initialize paths based on buildType
+     * Ensure build paths are initialized based on current buildType
+     *
+     * Build paths depend on buildType (Component vs Release) because it
+     * organizes output directories differently for different build configurations.
+     * This method is called lazily to ensure paths are available when needed.
+     *
+     * @private
      */
     _ensurePaths() {
         if (!this.paths) {
@@ -35,7 +48,15 @@ class MacOSBuilder {
     }
 
     /**
-     * Initialize the build environment
+     * Initialize the complete macOS build environment
+     *
+     * Sets up everything needed for a Brave browser build on macOS, including:
+     * - Homebrew dependencies (coreutils for gtimeout)
+     * - Xcode toolchain selection and Metal graphics support
+     * - Brave source code checkout from GitHub
+     * - Node.js/npm dependencies for the build system
+     *
+     * @returns {Promise<void>} Completes when environment is fully initialized
      */
     async initialize() {
         this._ensurePaths();
@@ -59,7 +80,9 @@ class MacOSBuilder {
     }
 
     /**
-     * Run npm run init stage
+     * Execute the npm run init stage
+     *
+     * @returns {Promise<boolean>} true if initialization successful, false if failed
      */
     async runInit() {
         console.log('\n=== Stage: npm run init ===');
@@ -87,7 +110,15 @@ class MacOSBuilder {
     }
 
     /**
-     * Run npm run build stage
+     * Execute the npm run build stage
+     *
+     * Uses gtimeout (GNU timeout) instead of regular timeout for compatibility
+     * with macOS. Implements intelligent timeout management to work within
+     * GitHub Actions' 6-hour limit.
+     *
+     * @returns {Promise<{success: boolean, timedOut: boolean}>}
+     *         success: true if build completed successfully
+     *         timedOut: true if build timed out (can be resumed)
      */
     async runBuild() {
         this._ensurePaths();
@@ -121,20 +152,13 @@ class MacOSBuilder {
                 '--ninja', `j:5`,
                 // Critical optimization flags (these trigger -O3 and LTO automatically)
                 '--gn', 'is_official_build:true',      // CRITICAL: Enables -O3, LTO, and all optimizations
-                '--gn', 'is_debug:false',              // No debug code
                 '--gn', 'dcheck_always_on:false',      // Disable expensive debug checks
-                '--gn', 'enable_stripping:true',       // Strip symbols from final binary
-                '--gn', 'brave_channel:dev',           // Brand as Dev to distinguish from official Brave
-                // FORCE LTO on explicitly (paranoid mode - ensures it's enabled regardless of defaults)
-                '--gn', 'use_thin_lto:true',           // Force ThinLTO enabled
-                '--gn', 'thin_lto_enable_optimizations:true',  // Maximize LTO optimizations
-                // Symbol generation flags (keep disabled for smaller/faster builds)
+                // no thanks, we don't debug here
                 '--gn', 'symbol_level:0',
                 '--gn', 'blink_symbol_level:0',
                 '--gn', 'v8_symbol_level:0',
                 '--gn', 'should_generate_symbols:false',
-                // Disable PageGraph (research/debugging feature - not needed for production)
-                '--gn', 'enable_brave_page_graph:false'
+                '--gn', 'brave_p3a_enabled:false'
             ];
             console.log('Running npm run build Release with create_dist (OPTIMIZED)...');
             console.log(`Note: Building for ${this.arch} architecture`);
@@ -185,26 +209,22 @@ class MacOSBuilder {
     }
 
     /**
-     * Run create_dist stage (Release builds only)
-     * NOTE: As of the macOS Xcode fix, create_dist is now unified with runBuild()
-     * This method is kept for compatibility but just returns success.
-     */
-    async runBuildDist() {
-        this._ensurePaths();
-        console.log('\n=== Stage: create_dist (unified with build, no-op) ===');
-        
-        if (this.buildType !== 'Release') {
-            console.log('Skipping create_dist - not a Release build');
-            return {success: true, timedOut: false};
-        }
-        
-        console.log('create_dist already completed in unified build step (macOS Xcode fix)');
-        console.log('✓ Distribution package already created');
-        return {success: true, timedOut: false};
-    }
-
-    /**
-     * Package the built browser
+     * Package the compiled browser into distributable artifacts
+     *
+     * Handles different packaging strategies based on build type:
+     *
+     * Release builds: Locate and copy the distribution ZIP/DMG created by Brave's
+     *                 build system, with special handling for ARM64 code signing
+     *
+     * Component builds: Create compressed tarball of entire output directory
+     *                   for development/testing purposes
+     *
+     * ARM64 builds receive special code signing treatment to ensure compatibility
+     * with Apple's Gatekeeper and security requirements.
+     *
+     * @returns {Promise<{packagePath: string, packageName: string}>}
+     *         packagePath: Absolute path to the created package file
+     *         packageName: Standardized package filename
      */
     async package() {
         this._ensurePaths();
@@ -466,18 +486,39 @@ class MacOSBuilder {
     }
 
     // ========================================================================
-    // Private methods
+    // Private methods - macOS-specific implementation details
     // ========================================================================
 
+    /**
+     * Install macOS-specific build dependencies via Homebrew
+     *
+     * macOS requires GNU coreutils for the gtimeout command used in timeout
+     * handling. Unlike Linux which has native timeout, macOS needs this
+     * additional dependency for reliable build process management.
+     *
+     * @private
+     */
     async _installBrewDependencies() {
         console.log('Installing build dependencies via Homebrew...');
-        console.log('Installing: coreutils (for gtimeout), ncdu (for disk analysis)');
+        console.log('Installing: coreutils (for gtimeout)');
         
-        await exec.exec('brew', ['install', 'coreutils', 'ncdu'], {ignoreReturnCode: true});
+        await exec.exec('brew', ['install', 'coreutils'], {ignoreReturnCode: true});
         
         console.log('✓ Homebrew dependencies installed');
     }
 
+    /**
+     * Setup Xcode development environment and Metal toolchain
+     *
+     * Configures the appropriate Xcode version and installs the Metal graphics
+     * toolchain required for Chromium builds. Chromium requires specific Xcode
+     * versions for compatibility, and Metal is needed for GPU acceleration.
+     *
+     * Tries multiple Xcode versions in order of preference, falling back
+     * gracefully if preferred versions aren't available.
+     *
+     * @private
+     */
     async _setupXcode() {
         console.log('\n=== Setting up Xcode Environment ===');
         
@@ -564,9 +605,23 @@ class MacOSBuilder {
     }
 
     /**
-     * Sign the .app bundle inside a zip file (for ARM64 builds)
-     * Extracts the zip, finds the .app bundle, signs it with ad-hoc signing, then re-zips
-     * 
+     * Sign the .app bundle inside a zip file for ARM64 compatibility
+     *
+     * Apple Silicon (ARM64) builds require code signing to run on macOS.
+     * This method extracts the distribution ZIP, finds the .app bundle,
+     * applies ad-hoc code signing, and re-packages everything.
+     *
+     * Process:
+     * 1. Extract the ZIP file to temporary directory
+     * 2. Locate the .app bundle within extracted contents
+     * 3. Apply ad-hoc code signing with codesign --force --deep -s -
+     * 4. Verify the signature
+     * 5. Re-package as ZIP with the signed .app bundle
+     *
+     * Ad-hoc signing allows the app to run on the same machine without
+     * requiring a full Apple Developer Program certificate.
+     *
+     * @private
      * @param {string} zipPath - Path to the zip file containing the .app bundle
      * @returns {Promise<string>} Path to the signed zip file (same as input, overwritten)
      */

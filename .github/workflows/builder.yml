@@ -42,7 +42,12 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ inputs.platform == 'linux' && 'ubuntu-22.04' || inputs.platform == 'macos' && 'macos-latest' || 'windows-2022' }}
+    runs-on: ${{ 
+      (inputs.platform == 'windows' && inputs.arch == 'arm64') && 'windows-11-arm' ||
+      (inputs.platform == 'linux') && 'ubuntu-22.04' ||
+      (inputs.platform == 'macos') && 'macos-latest' ||
+      'windows-2022'
+    }}
     
     steps:
       - name: Checkout repository

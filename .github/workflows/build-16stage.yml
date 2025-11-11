@@ -39,7 +39,7 @@ on:
         type: boolean
         default: false
       build_type:
-        description: 'Build type: Component (faster, for testing) or Release (official build, requires secrets)'
+        description: 'Build type: Component or Release'
         required: true
         type: choice
         options:

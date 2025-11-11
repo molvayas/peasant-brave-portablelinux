@@ -5,9 +5,9 @@
  * Usage: node upload-volume.js <filePath> <artifactName> <tempDir>
  * 
  * Arguments:
- *   filePath     - Path to file to upload
+ *   filePath     - Path to file to upload (absolute or relative to tempDir)
  *   artifactName - Name for the artifact
- *   tempDir      - Temporary directory (for node_modules path)
+ *   tempDir      - Root directory for the artifact upload (used by uploadArtifact API)
  */
 
 const {DefaultArtifactClient} = require('@actions/artifact');
