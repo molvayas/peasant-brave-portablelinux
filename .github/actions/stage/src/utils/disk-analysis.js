@@ -186,11 +186,16 @@ class DiskAnalyzer {
         }
 
         // Platform-specific disk scanning:
-        // - Windows: Scan both C: (system) and D: (build workspace) drives separately
+        // - Windows: Scan C: (system) drive; D: (build workspace) only if it exists (not on ARM64)
         // - Linux/macOS: Scan root filesystem (/) which includes all mounted drives
         if (this.platform === 'windows') {
             await this._runAnalysisAndUpload(`disk-usage-${stage}-${this.platform}-${this.arch}-C`, 'C:\\');
-            await this._runAnalysisAndUpload(`disk-usage-${stage}-${this.platform}-${this.arch}-D`, 'D:\\');
+            // ARM64 Windows images don't have D: drive, so skip it for ARM64 builds
+            if (this.arch.toLowerCase() !== 'arm64') {
+                await this._runAnalysisAndUpload(`disk-usage-${stage}-${this.platform}-${this.arch}-D`, 'D:\\');
+            } else {
+                console.log('Skipping D: drive analysis for ARM64 Windows (D: drive does not exist on ARM64 Windows images)');
+            }
         } else if (this.platform === 'linux' || this.platform === 'macos') {
             await this._runAnalysisAndUpload(`disk-usage-${stage}-${this.platform}-${this.arch}`, '/');
         }

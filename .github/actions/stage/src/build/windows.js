@@ -38,12 +38,13 @@ class WindowsBuilder {
      * Build paths depend on buildType (Component vs Release) because Chromium
      * organizes output directories differently for different build configurations.
      * This method is called lazily to ensure paths are available when needed.
+     * Architecture is passed to handle platform-specific path overrides (e.g., Windows ARM64 uses C: drive).
      *
      * @private
      */
     _ensurePaths() {
         if (!this.paths) {
-            this.paths = getBuildPaths(this.platform, this.buildType);
+            this.paths = getBuildPaths(this.platform, this.buildType, this.arch);
         }
     }
 

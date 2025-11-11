@@ -250,10 +250,11 @@ function isWSL() {
  * it automatically switches to 'linux-wsl' configuration for optimal performance.
  *
  * @param {string} platform - Platform name (linux, macos, windows, linux-wsl)
+ * @param {string} arch - Optional architecture (x64, arm64, x86) for platform-specific overrides
  * @returns {object} Complete platform configuration object
  * @throws {Error} If platform is not supported
  */
-function getPlatformConfig(platform) {
+function getPlatformConfig(platform, arch = null) {
     let platformKey = platform.toLowerCase();
 
     // Auto-detect WSL for Linux platform and switch to optimized config
@@ -266,6 +267,16 @@ function getPlatformConfig(platform) {
     if (!config) {
         throw new Error(`Unsupported platform: ${platform}. Supported: ${Object.keys(PLATFORMS).join(', ')}`);
     }
+    
+    // Windows ARM64: Use C: drive instead of D: drive (ARM64 Windows images don't have D: drive)
+    if (platformKey === 'windows' && arch && arch.toLowerCase() === 'arm64') {
+        console.log('WINDOWS ARM64: Using C: drive instead of D: drive (ARM64 Windows images don\'t have D: drive)');
+        return {
+            ...config,
+            workDir: 'C:\\brave-build'
+        };
+    }
+    
     return config;
 }
 
@@ -296,10 +307,11 @@ function getArchConfig(arch) {
  *
  * @param {string} platform - Target platform (affects base paths)
  * @param {string} buildType - Build type (Component or Release, affects output dir)
+ * @param {string} arch - Optional architecture (x64, arm64, x86) for platform-specific path overrides
  * @returns {object} Path configuration object with all required directories
  */
-function getBuildPaths(platform, buildType = 'Component') {
-    const platformConfig = getPlatformConfig(platform);
+function getBuildPaths(platform, buildType = 'Component', arch = null) {
+    const platformConfig = getPlatformConfig(platform, arch);
     const workDir = platformConfig.workDir;
 
     // Chromium uses buildType as output directory name (Component/Release)
