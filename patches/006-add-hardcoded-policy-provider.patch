@@ -243,10 +243,7 @@ index 00000000000..d03533b4b2d
 --- /dev/null
 +++ b/components/brave_policy/hardcoded_policy_provider.cc
 @@ -0,0 +1,189 @@
-+/* Copyright (c) 2025 The Brave Authors. All rights reserved.
-+ * This Source Code Form is subject to the terms of the Mozilla Public
-+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
-+ * You can obtain one at https://mozilla.org/MPL/2.0/. */
++/* All rights reserved.*/
 +
 +#include "brave/components/brave_policy/hardcoded_policy_provider.h"
 +
@@ -438,10 +435,7 @@ index 00000000000..4ae8d0fbcc3
 --- /dev/null
 +++ b/components/brave_policy/hardcoded_policy_provider.h
 @@ -0,0 +1,59 @@
-+/* Copyright (c) 2025 The Brave Authors. All rights reserved.
-+ * This Source Code Form is subject to the terms of the Mozilla Public
-+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
-+ * You can obtain one at https://mozilla.org/MPL/2.0/. */
++/* All rights reserved.*/
 +
 +#ifndef BRAVE_COMPONENTS_BRAVE_POLICY_HARDCODED_POLICY_PROVIDER_H_
 +#define BRAVE_COMPONENTS_BRAVE_POLICY_HARDCODED_POLICY_PROVIDER_H_

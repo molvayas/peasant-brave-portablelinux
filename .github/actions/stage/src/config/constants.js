@@ -95,7 +95,7 @@ const PLATFORMS = {
             'third_party/jdk',                      // Java Development Kit
             'third_party/android_*'                 // Android dependencies
         ],
-        enableGdu: true                             // Enable disk analysis with gdu
+        enableGdu: false                             // Enable disk analysis with gdu
     },
 
     // Linux builds running under Windows Subsystem for Linux
@@ -123,7 +123,7 @@ const PLATFORMS = {
         useNativeFilesystem: true,                 // Use ext4 VHD instead of Windows NTFS
         vhdSize: '140G',                          // Large virtual disk for builds
         vhdPath: '/mnt/d/wsl-vhd/brave-build.ext4', // Path to VHD file on Windows D: drive
-        enableGdu: true                           // Enable disk analysis in WSL environment
+        enableGdu: false                           // Enable disk analysis in WSL environment
     },
 
     // ========================================================================
@@ -143,7 +143,7 @@ const PLATFORMS = {
             'third_party/jdk',                      // Java Development Kit
             'third_party/android_*'                 // Android dependencies
         ],
-        enableGdu: true                            // Enable disk analysis with gdu
+        enableGdu: false                            // Enable disk analysis with gdu
     },
 
     // ========================================================================
