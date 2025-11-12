@@ -15,12 +15,14 @@ Custom patches are automatically applied during GitHub Actions builds. For local
 
 **How:** The `_applyPatches()` method:
 1. Checks if `patches/` and `series` exist
-2. Reads `series` file to get patch order
-3. Applies patches:
-   - **Linux:** Uses `quilt push -a` (quilt installed via apt-get)
-   - **Windows:** Uses `git apply` (git always available)
-   - **macOS:** Uses `git apply` (git always available)
+2. Sets up quilt environment variables (QUILT_PATCHES, QUILT_SERIES, QUILT_PC)
+3. Applies all patches with `quilt push -a`:
+   - **Linux:** quilt installed via apt-get
+   - **Windows:** quilt installed via MSYS2 pacman
+   - **macOS:** quilt installed via Homebrew
 4. Fails the build if patches don't apply cleanly
+
+**Unified approach:** All platforms now use quilt for consistency and robustness.
 
 ## Local Development
 

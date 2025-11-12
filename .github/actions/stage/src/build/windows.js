@@ -455,6 +455,13 @@ class WindowsBuilder {
             ignoreReturnCode: true
         });
         console.log('✓ depot_tools dependencies installed');
+        
+        // Install quilt via MSYS2 for patch management
+        console.log('Installing quilt via MSYS2...');
+        await exec.exec('C:\\msys64\\usr\\bin\\pacman.exe', ['-S', '--noconfirm', 'quilt'], {
+            ignoreReturnCode: true
+        });
+        console.log('✓ quilt installed');
     }
 
     async _cloneBraveCore() {
@@ -493,33 +500,32 @@ class WindowsBuilder {
         console.log(`Series file: ${seriesFile}`);
         console.log(`Brave directory: ${this.paths.braveDir}`);
         
-        // Windows: Use git apply instead of quilt (git is always available)
-        // Read series file to get patch order
-        const seriesContent = await fs.readFile(seriesFile, 'utf-8');
-        const patches = seriesContent
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line && !line.startsWith('#'));
+        // Windows: Use quilt via MSYS2 (same as Linux for consistency)
+        const quiltExe = 'C:\\msys64\\usr\\bin\\quilt.exe';
         
-        console.log(`Found ${patches.length} patches to apply`);
+        // Set up quilt environment
+        const quiltEnv = {
+            ...process.env,
+            QUILT_PATCHES: patchesDir,
+            QUILT_SERIES: seriesFile,
+            QUILT_PC: path.join(this.paths.braveDir, '.pc')
+        };
         
-        // Apply each patch in order
-        for (const patchName of patches) {
-            const patchPath = path.join(patchesDir, patchName);
-            console.log(`Applying ${patchName}...`);
-            
-            const patchCode = await exec.exec('git', ['apply', '--verbose', patchPath], {
-                cwd: this.paths.braveDir,
-                ignoreReturnCode: true
-            });
-            
-            if (patchCode !== 0) {
-                console.error(`✗ Failed to apply patch: ${patchName}`);
-                throw new Error(`Patch application failed: ${patchName}`);
-            }
+        console.log('Applying all patches with quilt...');
+        
+        // Apply all patches using quilt push -a (same as Linux)
+        const patchCode = await exec.exec(quiltExe, ['push', '-a'], {
+            cwd: this.paths.braveDir,
+            env: quiltEnv,
+            ignoreReturnCode: true
+        });
+        
+        if (patchCode === 0) {
+            console.log('✓ All custom patches applied successfully');
+        } else {
+            console.error(`✗ Patch application failed with code ${patchCode}`);
+            throw new Error('Failed to apply custom patches');
         }
-        
-        console.log('✓ All custom patches applied successfully');
     }
 
     async _installNpmDependencies() {
