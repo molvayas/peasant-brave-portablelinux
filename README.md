@@ -38,6 +38,20 @@ scripts/apply-patches
 scripts/update-brave-version v1.86.50
 ```
 
+## Troubleshooting
+
+**Build fails with patch errors:**
+- Check if patches are compatible with current brave_version.txt
+- Resolve conflicts manually on a local machine:
+  ```bash
+  cd ../brave
+  export QUILT_PATCHES=/path/to/repo/patches QUILT_SERIES=/path/to/repo/series
+  quilt push -f
+  vim conflicted_file.cc
+  rm *.rej
+  quilt refresh
+  ```
+
 ## GitHub Actions Build
 
 Patches are automatically applied during the build process in `.github/actions/stage`.
@@ -47,6 +61,3 @@ Patches are automatically applied during the build process in `.github/actions/s
 Dual-licensed:
 - Modifications of Brave: MPL-2.0 (see LICENSE-MPL)
 - New custom files: Transparency-Only (see LICENSE-PROPRIETARY)
-
-Build system inspired by [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium).
-
