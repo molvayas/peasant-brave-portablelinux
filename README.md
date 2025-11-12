@@ -1,6 +1,6 @@
-# Peasant Brave Portable Linux
+# raven
 
-Automated Brave Browser builds with custom patches. Target version: **v1.85.74**
+Automated Brave builds with minor custom patches.
 
 ## Structure
 
