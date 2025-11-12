@@ -1,6 +1,6 @@
 # raven
 
-Automated Brave builds with minor custom patches.
+Automated Brave builds with minor patches.
 
 ## Structure
 
