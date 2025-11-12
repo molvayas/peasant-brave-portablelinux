@@ -177,9 +177,10 @@ class BuildOrchestrator {
                 console.log('⚠️  Emergency checkpoint created despite error');
             } catch (checkpointError) {
                 console.error(`✗ Failed to create emergency checkpoint: ${checkpointError.message}`);
-                // Mark the entire GitHub Action as failed
-                core.setFailed(`Build failed: ${error.message}`);
             }
+            
+            // ALWAYS mark the job as failed when build errors occur
+            core.setFailed(`Build failed: ${error.message}`);
         }
     }
 

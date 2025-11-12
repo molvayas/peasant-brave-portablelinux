@@ -500,23 +500,22 @@ class WindowsBuilder {
         console.log(`Series file: ${seriesFile}`);
         console.log(`Brave directory: ${this.paths.braveDir}`);
         
-        // Windows: Use quilt via MSYS2 (same as Linux for consistency)
-        const quiltExe = 'C:\\msys64\\usr\\bin\\quilt.exe';
+        // Windows: Use quilt via MSYS2 bash (quilt is a shell script, not .exe)
+        const msys2Bash = 'C:\\msys64\\usr\\bin\\bash.exe';
         
-        // Set up quilt environment
-        const quiltEnv = {
-            ...process.env,
-            QUILT_PATCHES: patchesDir,
-            QUILT_SERIES: seriesFile,
-            QUILT_PC: path.join(this.paths.braveDir, '.pc')
-        };
+        // Convert Windows paths to MSYS2 paths
+        // D:\brave-build\src\brave -> /d/brave-build/src/brave
+        const msys2BraveDir = this.paths.braveDir.replace(/\\/g, '/').replace(/^([A-Z]):/, (_, drive) => `/${drive.toLowerCase()}`);
+        const msys2PatchesDir = patchesDir.replace(/\\/g, '/').replace(/^([A-Z]):/, (_, drive) => `/${drive.toLowerCase()}`);
+        const msys2SeriesFile = seriesFile.replace(/\\/g, '/').replace(/^([A-Z]):/, (_, drive) => `/${drive.toLowerCase()}`);
+        const msys2PcDir = path.join(this.paths.braveDir, '.pc').replace(/\\/g, '/').replace(/^([A-Z]):/, (_, drive) => `/${drive.toLowerCase()}`);
         
-        console.log('Applying all patches with quilt...');
+        console.log('Applying all patches with quilt via MSYS2...');
         
-        // Apply all patches using quilt push -a (same as Linux)
-        const patchCode = await exec.exec(quiltExe, ['push', '-a'], {
-            cwd: this.paths.braveDir,
-            env: quiltEnv,
+        // Run quilt through MSYS2 bash
+        const quiltCommand = `cd "${msys2BraveDir}" && QUILT_PATCHES="${msys2PatchesDir}" QUILT_SERIES="${msys2SeriesFile}" QUILT_PC="${msys2PcDir}" quilt push -a`;
+        
+        const patchCode = await exec.exec(msys2Bash, ['-lc', quiltCommand], {
             ignoreReturnCode: true
         });
         
