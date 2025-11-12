@@ -356,7 +356,7 @@ class WindowsBuilder {
             }
             
             // Copy to work directory with standardized name
-            const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.zip`;
+            const packageName = `raven-${this.braveVersion}-${this.platform}-${this.arch}.zip`;
             const packagePath = path.join(this.paths.workDir, packageName);
             
             await fs.copyFile(distZipPath, packagePath);
@@ -381,7 +381,7 @@ class WindowsBuilder {
             }
             
             // Create zip of entire out directory
-            const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.${this.config.packageFormat}`;
+            const packageName = `raven-out-${this.braveVersion}-${this.platform}-${this.arch}.${this.config.packageFormat}`;
             const packagePath = path.join(this.paths.workDir, packageName);
             
             console.log(`Creating archive: ${packageName}`);

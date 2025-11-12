@@ -212,18 +212,29 @@ class MacOSBuilder {
     }
 
     /**
+     * Generate standardized package name for the build
+     *
+     * @private
+     * @param {string} ext - File extension (zip, dmg, tar.xz)
+     * @returns {string} Package name with appropriate suffix
+     */
+    _generatePackageName(ext) {
+        const baseName = `raven-${this.braveVersion}-${this.platform}-${this.arch}`;
+        // Add "-unsigned" suffix for ARM64 builds to highlight they are unsigned
+        const suffix = this.arch === 'arm64' ? '-unsigned' : '';
+        return `${baseName}${suffix}.${ext}`;
+    }
+
+    /**
      * Package the compiled browser into distributable artifacts
      *
      * Handles different packaging strategies based on build type:
      *
      * Release builds: Locate and copy the distribution ZIP/DMG created by Brave's
-     *                 build system, with special handling for ARM64 code signing
+     *                 build system
      *
      * Component builds: Create compressed tarball of entire output directory
      *                   for development/testing purposes
-     *
-     * ARM64 builds receive special code signing treatment to ensure compatibility
-     * with Apple's Gatekeeper and security requirements.
      *
      * @returns {Promise<{packagePath: string, packageName: string}>}
      *         packagePath: Absolute path to the created package file
@@ -289,30 +300,10 @@ class MacOSBuilder {
                             console.log(`Using found distribution file: ${distFile}`);
                             const foundDistPath = path.join(distDir, distFile);
                             const ext = distFile.endsWith('.zip') ? 'zip' : 'dmg';
-                            const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.${ext}`;
+                            const packageName = this._generatePackageName(ext);
                             const packagePath = path.join(this.paths.workDir, packageName);
                             await fs.copyFile(foundDistPath, packagePath);
-                            console.log('✓ Package copied successfully (original)');
-                            
-                            // Sign the .app bundle for ARM64 builds (only for .zip files)
-                            if (this.arch === 'arm64' && ext === 'zip') {
-                                console.log('\n=== Code Signing ARM64 Build ===');
-                                // Create signed version with "-signed" suffix
-                                const signedPackageName = packageName.replace('.zip', '-signed.zip');
-                                const signedPackagePath = path.join(this.paths.workDir, signedPackageName);
-                                
-                                // Copy original to signed path, then sign it
-                                await fs.copyFile(packagePath, signedPackagePath);
-                                console.log(`✓ Created signed copy: ${signedPackageName}`);
-                                
-                                // Sign the copied file (this will modify it in place)
-                                await this._signAppBundle(signedPackagePath);
-                                
-                                console.log(`✓ Original package preserved: ${packageName}`);
-                                console.log(`✓ Signed package created: ${signedPackageName}`);
-                                
-                                return { packagePath: signedPackagePath, packageName: signedPackageName };
-                            }
+                            console.log('✓ Package copied successfully');
                             
                             return { packagePath, packageName };
                         }
@@ -343,30 +334,10 @@ class MacOSBuilder {
                                     console.log(`✓ Found distribution file in ${checkDir}: ${distFile}`);
                                     const foundDistPath = path.join(checkDir, distFile);
                                     const ext = distFile.endsWith('.zip') ? 'zip' : 'dmg';
-                                    const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.${ext}`;
+                                    const packageName = this._generatePackageName(ext);
                                     const packagePath = path.join(this.paths.workDir, packageName);
                                     await fs.copyFile(foundDistPath, packagePath);
-                                    console.log('✓ Package copied successfully (original)');
-                                    
-                                    // Sign the .app bundle for ARM64 builds (only for .zip files)
-                                    if (this.arch === 'arm64' && ext === 'zip') {
-                                        console.log('\n=== Code Signing ARM64 Build ===');
-                                        // Create signed version with "-signed" suffix
-                                        const signedPackageName = packageName.replace('.zip', '-signed.zip');
-                                        const signedPackagePath = path.join(this.paths.workDir, signedPackageName);
-                                        
-                                        // Copy original to signed path, then sign it
-                                        await fs.copyFile(packagePath, signedPackagePath);
-                                        console.log(`✓ Created signed copy: ${signedPackageName}`);
-                                        
-                                        // Sign the copied file (this will modify it in place)
-                                        await this._signAppBundle(signedPackagePath);
-                                        
-                                        console.log(`✓ Original package preserved: ${packageName}`);
-                                        console.log(`✓ Signed package created: ${signedPackageName}`);
-                                        
-                                        return { packagePath: signedPackagePath, packageName: signedPackageName };
-                                    }
+                                    console.log('✓ Package copied successfully');
                                     
                                     return { packagePath, packageName };
                                 }
@@ -383,34 +354,11 @@ class MacOSBuilder {
             }
             
             // Copy to work directory with standardized name
-            const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.zip`;
+            const packageName = this._generatePackageName('zip');
             const packagePath = path.join(this.paths.workDir, packageName);
             
             await fs.copyFile(distZipPath, packagePath);
-            console.log('✓ Package copied successfully (original)');
-            
-            // Sign the .app bundle for ARM64 builds
-            if (this.arch === 'arm64') {
-                console.log('\n=== Code Signing ARM64 Build ===');
-                // Create signed version with "-signed" suffix
-                const signedPackageName = packageName.replace('.zip', '-signed.zip');
-                const signedPackagePath = path.join(this.paths.workDir, signedPackageName);
-                
-                // Copy original to signed path, then sign it
-                await fs.copyFile(packagePath, signedPackagePath);
-                console.log(`✓ Created signed copy: ${signedPackageName}`);
-                
-                // Sign the copied file (this will modify it in place)
-                await this._signAppBundle(signedPackagePath);
-                
-                console.log(`✓ Original package preserved: ${packageName}`);
-                console.log(`✓ Signed package created: ${signedPackageName}`);
-                
-                return {
-                    packagePath: signedPackagePath,
-                    packageName: signedPackageName
-                };
-            }
+            console.log('✓ Package copied successfully');
             
             return {
                 packagePath,
@@ -431,7 +379,7 @@ class MacOSBuilder {
             }
             
             // Create tarball of entire out directory
-            const packageName = `brave-out-${this.braveVersion}-${this.platform}.${this.config.packageFormat}`;
+            const packageName = `raven-out-${this.braveVersion}-${this.platform}.${this.config.packageFormat}`;
             const packagePath = path.join(this.paths.workDir, packageName);
             
             console.log(`Creating archive of entire out directory: ${packageName}`);
@@ -654,103 +602,6 @@ class MacOSBuilder {
         await cleanupDirectories(this.paths.srcDir, this.config.cleanupDirs);
     }
 
-    /**
-     * Sign the .app bundle inside a zip file for ARM64 compatibility
-     *
-     * Apple Silicon (ARM64) builds require code signing to run on macOS.
-     * This method extracts the distribution ZIP, finds the .app bundle,
-     * applies ad-hoc code signing, and re-packages everything.
-     *
-     * Process:
-     * 1. Extract the ZIP file to temporary directory
-     * 2. Locate the .app bundle within extracted contents
-     * 3. Apply ad-hoc code signing with codesign --force --deep -s -
-     * 4. Verify the signature
-     * 5. Re-package as ZIP with the signed .app bundle
-     *
-     * Ad-hoc signing allows the app to run on the same machine without
-     * requiring a full Apple Developer Program certificate.
-     *
-     * @private
-     * @param {string} zipPath - Path to the zip file containing the .app bundle
-     * @returns {Promise<string>} Path to the signed zip file (same as input, overwritten)
-     */
-    async _signAppBundle(zipPath) {
-        const tempDir = path.join(this.paths.workDir, 'sign-temp');
-        const extractDir = path.join(tempDir, 'extracted');
-        
-        try {
-            // Create temp directory
-            await fs.mkdir(extractDir, { recursive: true });
-            console.log(`Extracting zip to ${extractDir}...`);
-            
-            // Extract zip file
-            await exec.exec('unzip', ['-q', zipPath, '-d', extractDir]);
-            console.log('✓ Zip extracted');
-            
-            // Find the .app bundle (should be in the root of the extracted zip)
-            const extractedFiles = await fs.readdir(extractDir);
-            const appBundle = extractedFiles.find(f => f.endsWith('.app'));
-            
-            if (!appBundle) {
-                throw new Error(`No .app bundle found in extracted zip. Files found: ${extractedFiles.join(', ')}`);
-            }
-            
-            const appPath = path.join(extractDir, appBundle);
-            console.log(`Found .app bundle: ${appBundle}`);
-            console.log(`Signing with ad-hoc signature (codesign --force --deep -s -)...`);
-            
-            // Sign the .app bundle with ad-hoc signing
-            // -s - means ad-hoc signing (no identity needed)
-            // --force forces re-signing even if already signed
-            // --deep signs nested code (frameworks, helpers, etc.)
-            await exec.exec('codesign', [
-                '--force',
-                '--deep',
-                '-s', '-',
-                appPath
-            ]);
-            
-            console.log('✓ .app bundle signed successfully');
-            
-            // Verify the signature
-            console.log('Verifying signature...');
-            await exec.exec('codesign', ['--verify', '--verbose', appPath]);
-            console.log('✓ Signature verified');
-            
-            // Remove old zip and create new one
-            console.log('Re-zipping signed .app bundle...');
-            await fs.unlink(zipPath);
-            
-            // Create new zip with the signed .app bundle
-            // Use -r for recursive, -y for storing symlinks as-is, -q for quiet
-            await exec.exec('zip', [
-                '-r',
-                '-y',
-                '-q',
-                zipPath,
-                appBundle
-            ], {
-                cwd: extractDir
-            });
-            
-            console.log('✓ Re-zipped with signed .app bundle');
-            console.log(`Signed package: ${zipPath}`);
-            
-            return zipPath;
-            
-        } catch (error) {
-            console.error('Error signing .app bundle:', error);
-            throw error;
-        } finally {
-            // Clean up temp directory
-            try {
-                await fs.rm(tempDir, { recursive: true, force: true });
-            } catch (cleanupError) {
-                console.warn(`Warning: Failed to clean up temp directory ${tempDir}: ${cleanupError.message}`);
-            }
-        }
-    }
 }
 
 module.exports = MacOSBuilder;

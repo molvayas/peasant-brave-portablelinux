@@ -250,8 +250,8 @@ class LinuxBuilder {
             
             // Try both possible filenames (with and without -stable suffix)
             const possibleNames = [
-                `brave-browser-${versionWithoutV}-linux-${debArch}.zip`,
-                `brave-browser-stable-${versionWithoutV}-linux-${debArch}.zip`
+                `raven-${versionWithoutV}-linux-${debArch}.zip`,
+                `raven-stable-${versionWithoutV}-linux-${debArch}.zip`
             ];
             
             let distZipPath = null;
@@ -339,7 +339,7 @@ class LinuxBuilder {
             }
             
             // Copy to work directory with standardized name
-            const packageName = `brave-browser-${this.braveVersion}-${this.platform}-${this.arch}.zip`;
+            const packageName = `raven-${this.braveVersion}-${this.platform}-${this.arch}.zip`;
             const packagePath = path.join(this.paths.workDir, packageName);
             
             await fs.copyFile(distZipPath, packagePath);
@@ -364,7 +364,7 @@ class LinuxBuilder {
             }
             
             // Create tarball of entire out directory, excluding obj folders
-            const packageName = `brave-out-${this.braveVersion}-${this.platform}-${this.arch}.${this.config.packageFormat}`;
+            const packageName = `raven-out-${this.braveVersion}-${this.platform}-${this.arch}.${this.config.packageFormat}`;
             const packagePath = path.join(this.paths.workDir, packageName);
             
             console.log(`Creating package: ${packageName}`);
