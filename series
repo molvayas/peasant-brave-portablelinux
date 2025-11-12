@@ -1,0 +1,7 @@
+001-brave-browser-main-parts.patch
+002-chrome-browser-policy-connector.patch
+003-brave-policy-build.patch
+004-add-launch-authorization-doc.patch
+005-add-webrtc-internals.patch
+006-add-hardcoded-policy-provider.patch
+

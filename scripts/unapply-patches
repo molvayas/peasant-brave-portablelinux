@@ -1,0 +1,46 @@
+#!/bin/bash
+# Remove all Raven patches from the Brave repository
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RAVEN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+BRAVE_DIR="$RAVEN_DIR/../brave"
+PATCHES_DIR="$RAVEN_DIR/patches"
+SERIES_FILE="$RAVEN_DIR/series"
+
+# Check if brave directory exists
+if [ ! -d "$BRAVE_DIR" ]; then
+    echo "Error: Brave directory not found at $BRAVE_DIR"
+    exit 1
+fi
+
+echo "Removing Raven patches from Brave..."
+echo "Brave directory: $BRAVE_DIR"
+echo ""
+
+# Set up environment for quilt
+export QUILT_PATCHES="$PATCHES_DIR"
+export QUILT_SERIES="$SERIES_FILE"
+export QUILT_PC="$BRAVE_DIR/.pc"
+
+cd "$BRAVE_DIR"
+
+# Check if any patches are applied
+if [ ! -f "$BRAVE_DIR/.pc/applied-patches" ] || [ ! -s "$BRAVE_DIR/.pc/applied-patches" ]; then
+    echo "No patches currently applied."
+    exit 0
+fi
+
+# Remove all patches
+quilt pop -a
+
+echo ""
+echo "✓ All patches removed successfully!"
+echo ""
+echo "Brave is now in its original state. You can update it with:"
+echo "  cd $BRAVE_DIR"
+echo "  git fetch origin"
+echo "  git checkout v1.XX.XX"
+echo "  npm run sync"
+

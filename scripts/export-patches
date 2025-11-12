@@ -1,0 +1,60 @@
+#!/bin/bash
+# Export current changes in Brave back to Raven patches
+# Use this after making changes to refresh the patches
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RAVEN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+BRAVE_DIR="$RAVEN_DIR/../brave"
+PATCHES_DIR="$RAVEN_DIR/patches"
+SERIES_FILE="$RAVEN_DIR/series"
+
+# Check if brave directory exists
+if [ ! -d "$BRAVE_DIR" ]; then
+    echo "Error: Brave directory not found at $BRAVE_DIR"
+    exit 1
+fi
+
+echo "Exporting changes from Brave to Raven patches..."
+echo "Brave directory: $BRAVE_DIR"
+echo "Patches directory: $PATCHES_DIR"
+echo ""
+
+# Set up environment for quilt
+export QUILT_PATCHES="$PATCHES_DIR"
+export QUILT_SERIES="$SERIES_FILE"
+export QUILT_PC="$BRAVE_DIR/.pc"
+
+cd "$BRAVE_DIR"
+
+# Check if patches are applied
+if [ ! -f "$BRAVE_DIR/.pc/applied-patches" ] || [ ! -s "$BRAVE_DIR/.pc/applied-patches" ]; then
+    echo "Error: No patches are currently applied."
+    echo "Run ./apply-patches first, make your changes, then run this script."
+    exit 1
+fi
+
+# Get the current top patch
+CURRENT_PATCH=$(quilt top)
+
+if [ -z "$CURRENT_PATCH" ]; then
+    echo "Error: No patches are applied."
+    exit 1
+fi
+
+echo "Refreshing patch: $CURRENT_PATCH"
+quilt refresh
+
+echo ""
+echo "✓ Patch refreshed successfully!"
+echo ""
+echo "If you modified multiple patches, use quilt commands directly:"
+echo "  cd $BRAVE_DIR"
+echo "  quilt pop      # Go to previous patch"
+echo "  quilt refresh  # Refresh that patch"
+echo "  quilt push     # Return to top"
+echo ""
+echo "To see which patches are applied: quilt applied"
+echo "To see which files changed: quilt files"
+

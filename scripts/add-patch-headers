@@ -1,0 +1,110 @@
+#!/bin/bash
+# Add license and description headers to patch files
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RAVEN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PATCHES_DIR="$RAVEN_DIR/patches"
+SERIES_FILE="$RAVEN_DIR/series"
+
+echo "Adding headers to patch files..."
+echo ""
+
+# Function to add header to a patch file
+add_patch_header() {
+    local patch_file="$1"
+    local description="$2"
+    local license="$3"
+    local files_modified="$4"
+    
+    local patch_path="$PATCHES_DIR/$patch_file"
+    
+    if [ ! -f "$patch_path" ]; then
+        echo "  ⚠ Patch not found: $patch_file"
+        return
+    fi
+    
+    # Check if header already exists
+    if head -n 5 "$patch_path" | grep -q "^Description:"; then
+        echo "  ✓ Header exists: $patch_file"
+        return
+    fi
+    
+    # Create header
+    local header="Description: $description
+License: $license
+Files: $files_modified
+Author: [Your Organization]
+Date: $(date +%Y-%m-%d)
+
+"
+    
+    # Prepend header to patch
+    echo "$header" | cat - "$patch_path" > "$patch_path.tmp"
+    mv "$patch_path.tmp" "$patch_path"
+    
+    echo "  ✓ Added header: $patch_file"
+}
+
+# MPL-2.0 patches (modifications)
+echo "MPL-2.0 Patches (Brave modifications):"
+echo "---------------------------------------"
+
+add_patch_header \
+    "001-brave-browser-main-parts.patch" \
+    "Add launch authorization requirement check to browser startup" \
+    "MPL-2.0 (derivative work of Brave Browser)" \
+    "browser/brave_browser_main_parts.cc"
+
+add_patch_header \
+    "002-chrome-browser-policy-connector.patch" \
+    "Inject hardcoded policy provider into policy system" \
+    "MPL-2.0 (derivative work of Brave Browser)" \
+    "chromium_src/chrome/browser/policy/chrome_browser_policy_connector.cc"
+
+add_patch_header \
+    "003-brave-policy-build.patch" \
+    "Update build configuration for hardcoded policy provider" \
+    "MPL-2.0 (derivative work of Brave Browser)" \
+    "components/brave_policy/BUILD.gn"
+
+echo ""
+echo "Proprietary Patches (new files):"
+echo "--------------------------------"
+
+# Proprietary patches (new files)
+add_patch_header \
+    "004-add-launch-authorization-doc.patch" \
+    "Add documentation for launch authorization feature" \
+    "Proprietary (see LICENSE-CUSTOM)" \
+    "browser/LAUNCH_AUTHORIZATION.md"
+
+add_patch_header \
+    "005-add-webrtc-internals.patch" \
+    "Add WebRTC internals override for custom behavior" \
+    "Proprietary (see LICENSE-CUSTOM)" \
+    "chromium_src/content/browser/webrtc/webrtc_internals.cc"
+
+add_patch_header \
+    "006-add-hardcoded-policy-provider.patch" \
+    "Add hardcoded policy provider implementation and documentation" \
+    "Proprietary (see LICENSE-CUSTOM)" \
+    "components/brave_policy/HARDCODED_POLICIES.md, components/brave_policy/hardcoded_policy_provider.{h,cc}"
+
+echo ""
+echo "════════════════════════════════════════════════════════════════"
+echo "✓ Patch headers added!"
+echo ""
+echo "You can view headers with:"
+echo "  head -n 10 patches/001-*.patch"
+echo ""
+echo "To edit a header manually:"
+echo "  \$EDITOR patches/001-*.patch  # Edit the top lines before 'diff'"
+echo ""
+echo "Or use quilt:"
+echo "  cd ../brave"
+echo "  export QUILT_PATCHES=../raven/patches QUILT_SERIES=../raven/series"
+echo "  quilt header -e 001-*.patch  # Opens editor for header"
+echo "════════════════════════════════════════════════════════════════"
+

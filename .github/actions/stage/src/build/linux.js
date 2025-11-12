@@ -78,6 +78,9 @@ class LinuxBuilder {
         // Clone brave-core
         await this._cloneBraveCore();
         
+        // Apply custom patches
+        await this._applyPatches();
+        
         // Install npm dependencies
         await this._installNpmDependencies();
     }
@@ -450,6 +453,50 @@ class LinuxBuilder {
         ], {ignoreReturnCode: true});
         
         console.log('✓ brave-core cloned');
+    }
+
+    async _applyPatches() {
+        console.log('=== Applying Custom Patches ===');
+        
+        // Paths to patches (repo root contains patches/, scripts/, series)
+        const repoRoot = process.env.GITHUB_WORKSPACE;
+        const patchesDir = path.join(repoRoot, 'patches');
+        const seriesFile = path.join(repoRoot, 'series');
+        
+        // Check if patches exist
+        try {
+            await fs.access(patchesDir);
+            await fs.access(seriesFile);
+        } catch (e) {
+            console.log('ℹ No custom patches found, skipping patch application');
+            return;
+        }
+        
+        // Set up quilt environment
+        const quiltEnv = {
+            ...process.env,
+            QUILT_PATCHES: patchesDir,
+            QUILT_SERIES: seriesFile,
+            QUILT_PC: path.join(this.paths.braveDir, '.pc')
+        };
+        
+        console.log(`Patches directory: ${patchesDir}`);
+        console.log(`Series file: ${seriesFile}`);
+        console.log(`Brave directory: ${this.paths.braveDir}`);
+        
+        // Apply all patches using quilt
+        const patchCode = await exec.exec('quilt', ['push', '-a'], {
+            cwd: this.paths.braveDir,
+            env: quiltEnv,
+            ignoreReturnCode: true
+        });
+        
+        if (patchCode === 0) {
+            console.log('✓ All custom patches applied successfully');
+        } else {
+            console.error(`✗ Patch application failed with code ${patchCode}`);
+            throw new Error('Failed to apply custom patches');
+        }
     }
 
     async _installNpmDependencies() {

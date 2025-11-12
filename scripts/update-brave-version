@@ -1,0 +1,115 @@
+#!/bin/bash
+# Helper script for updating to new Brave version
+
+set -e
+
+if [ -z "$1" ]; then
+    echo "Usage: ./update-brave-version v1.86.50"
+    echo ""
+    echo "This script will:"
+    echo "  1. Unapply current patches"
+    echo "  2. Update Brave to specified version"
+    echo "  3. Sync Brave dependencies"
+    echo "  4. Attempt to reapply patches"
+    echo ""
+    echo "Current Brave version: $(cat brave_version.txt 2>/dev/null || echo 'unknown')"
+    exit 1
+fi
+
+NEW_VERSION="$1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RAVEN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+BRAVE_DIR="$RAVEN_DIR/../brave"
+CURRENT_VERSION=$(cat "$RAVEN_DIR/brave_version.txt" 2>/dev/null || echo "unknown")
+
+echo "════════════════════════════════════════════════════════════════"
+echo "Brave Version Update"
+echo "════════════════════════════════════════════════════════════════"
+echo "Current version: $CURRENT_VERSION"
+echo "Target version:  $NEW_VERSION"
+echo "════════════════════════════════════════════════════════════════"
+echo ""
+
+# Unapply patches
+echo "Step 1: Unapplying current patches..."
+echo "--------------------------------------"
+./unapply-patches
+echo ""
+
+# Update Brave
+echo "Step 2: Updating Brave repository..."
+echo "-------------------------------------"
+cd "$BRAVE_DIR"
+echo "Fetching tags..."
+git fetch origin --tags
+
+echo "Checking out $NEW_VERSION..."
+git checkout "$NEW_VERSION"
+
+cd "$SCRIPT_DIR"
+echo ""
+echo "Note: Skipping 'npm run sync' - only needed if you want to build."
+echo "      The patches will be tested against the Brave source code only."
+echo ""
+
+# Try to apply patches
+echo "Step 3: Attempting to apply patches..."
+echo "---------------------------------------"
+if ./apply-patches; then
+    echo ""
+    echo "════════════════════════════════════════════════════════════════"
+    echo "✅ SUCCESS! All patches applied cleanly"
+    echo "════════════════════════════════════════════════════════════════"
+    echo ""
+    echo "Next steps:"
+    echo ""
+    echo "1. (Optional) Sync dependencies if you want to build:"
+    echo "   cd ../brave && npm run sync"
+    echo ""
+    echo "2. (Optional) Test the build:"
+    echo "   cd ../brave && npm run build"
+    echo "   npm start -- --authorized-launch"
+    echo ""
+    echo "3. Update version tracking:"
+    echo "   cd ../raven"
+    echo "   echo '$NEW_VERSION' > brave_version.txt"
+    echo ""
+    echo "4. Commit the update:"
+    echo "   git add -A"
+    echo "   git commit -m 'Update patches for Brave $NEW_VERSION'"
+    echo "   git tag -a 'brave-$NEW_VERSION' -m 'Patches for Brave $NEW_VERSION'"
+    echo ""
+    echo "════════════════════════════════════════════════════════════════"
+else
+    echo ""
+    echo "════════════════════════════════════════════════════════════════"
+    echo "⚠️  CONFLICTS DETECTED"
+    echo "════════════════════════════════════════════════════════════════"
+    echo ""
+    echo "Some patches failed to apply. Manual resolution needed."
+    echo ""
+    echo "Quick fix workflow:"
+    echo "-------------------"
+    echo "cd ../brave"
+    echo "export QUILT_PATCHES=../raven/patches"
+    echo "export QUILT_SERIES=../raven/series"
+    echo ""
+    echo "# See what failed:"
+    echo "quilt top"
+    echo ""
+    echo "# Force apply the failed patch:"
+    echo "quilt push -f"
+    echo ""
+    echo "# Check for .rej files:"
+    echo "find . -name '*.rej'"
+    echo ""
+    echo "# Fix conflicts, then:"
+    echo "quilt refresh"
+    echo "quilt push -a"
+    echo ""
+    echo "════════════════════════════════════════════════════════════════"
+    echo "See UPDATING.md for detailed instructions"
+    echo "════════════════════════════════════════════════════════════════"
+    exit 1
+fi
+

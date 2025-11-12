@@ -1,0 +1,82 @@
+TRANSPARENCY-ONLY SOURCE CODE LICENSE
+
+Applies to: Everything in this repository except what is explicitly covered by MPL 2.0
+
+Copyright (c) 2025 [Your Organization]. All rights reserved.
+
+PURPOSE
+This source code is published for human inspection to verify:
+- The software operates as described
+- No malicious or hidden functionality exists
+- Data handling is honest and trustworthy
+
+PERMITTED
+✓ View and read the source code with human eyes
+✓ Download or clone source for personal viewing
+✓ Report security issues confidentially
+✓ Use compiled binaries officially provided by the Licensor for general personal use
+
+PROHIBITED
+✗ Compile, execute, or use the source code except for viewing purposes
+✗ Modify or create derivative works (commercial or non-commercial)
+✗ Create forks, adaptations, or translations
+✗ Distribute or share (source code or binaries)
+✗ Reverse engineer, decompile, or disassemble
+✗ Analyze with automated tools or scrapers
+✗ Use for AI/ML/LLM training (ChatGPT, Claude, Gemini, etc.)
+✗ Commercial or non-commercial competitive use
+✗ Use in any competing browser, product, or service
+✗ Remove or alter copyright notices or this license
+
+NONCOMPETE
+Any use is permitted only for personal purposes. You may not use this software
+to provide any product or service that competes with the software or any product
+the Licensor provides.
+
+Competition includes providing functionality through different interfaces,
+platforms, or technologies. Applications compete with services, libraries with
+plugins, frameworks with tools. Free products compete with paid products. If you
+market something as a substitute for the Licensor's products, it competes.
+
+Note: Only binaries officially distributed by the Licensor may be used, and only
+for general personal use.
+
+WARRANTY DISCLAIMER
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+LIMITATION OF LIABILITY
+IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF,
+OR IN CONNECTION WITH THE SOFTWARE OR USE THEREOF, INCLUDING BUT NOT LIMITED
+TO DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING LOSS OF USE, DATA, OR PROFITS; BUSINESS INTERRUPTION) EVEN IF
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+INDEMNIFICATION
+You agree to indemnify and hold harmless the Licensor from any claims arising
+from your violation of this license.
+
+VIOLATIONS
+The first time you violate these terms, your license can continue if you:
+- Come into full compliance within 32 days of written notice
+- Take practical steps to correct past violations
+Otherwise, all licenses end immediately.
+
+PATENT DEFENSE
+If you claim the software infringes any patent, your license ends immediately.
+
+TERMINATION
+Upon termination, you must delete all copies and cease all use.
+
+DEFINITIONS
+"You" means the individual or entity agreeing to these terms.
+"Licensor" means the copyright holder offering this license.
+"Software" means this source code and any binaries provided by the Licensor.
+"Product" means any good, service, or combination thereof.
+
+ACCEPTANCE
+To receive any license under these terms, you must agree to them as strict
+obligations and conditions to all your licenses. By accessing, viewing,
+downloading, or using the software, you agree to be bound by these terms.

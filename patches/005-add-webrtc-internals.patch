@@ -1,0 +1,20 @@
+Description: Add WebRTC internals override for custom behavior
+License: Proprietary (see LICENSE-CUSTOM)
+Files: chromium_src/content/browser/webrtc/webrtc_internals.cc
+Author: [Your Organization]
+Date: 2025-11-12
+
+
+diff --git a/chromium_src/content/browser/webrtc/webrtc_internals.cc b/chromium_src/content/browser/webrtc/webrtc_internals.cc
+new file mode 100644
+index 00000000000..719377a41ca
+--- /dev/null
++++ b/chromium_src/content/browser/webrtc/webrtc_internals.cc
+@@ -0,0 +1,7 @@
++#include "content/browser/webrtc/webrtc_internals.h"
++
++#define aggregate_updates_ms_(x) aggregate_updates_ms_(0)
++#include <content/browser/webrtc/webrtc_internals.cc>
++#undef aggregate_updates_ms_
++
++

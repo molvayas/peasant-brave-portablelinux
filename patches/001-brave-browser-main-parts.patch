@@ -1,0 +1,68 @@
+Description: Add launch authorization requirement check to browser startup
+License: MPL-2.0 (derivative work of Brave Browser)
+Files: browser/brave_browser_main_parts.cc
+Author: [Your Organization]
+Date: 2025-11-12
+
+
+diff --git a/browser/brave_browser_main_parts.cc b/browser/brave_browser_main_parts.cc
+index 8798227b949..8edee7d711b 100644
+--- a/browser/brave_browser_main_parts.cc
++++ b/browser/brave_browser_main_parts.cc
+@@ -11,6 +11,14 @@
+ #include "base/check.h"
+ #include "base/command_line.h"
+ #include "base/path_service.h"
++#include "chrome/common/chrome_result_codes.h"
++#include "ui/base/l10n/l10n_util.h"
++#include "ui/base/resource/resource_bundle.h"
++
++#if !BUILDFLAG(IS_ANDROID)
++#include "chrome/browser/ui/simple_message_box.h"
++#include "ui/gfx/native_ui_types.h"
++#endif
+ #include "brave/browser/browsing_data/brave_clear_browsing_data.h"
+ #include "brave/components/brave_component_updater/browser/brave_on_demand_updater.h"
+ #include "brave/components/brave_rewards/core/rewards_flags.h"
+@@ -69,6 +77,25 @@
+ #include "brave/components/ipfs/ipfs_component_cleaner.h"
+ #endif  // BUILDFLAG(DEPRECATE_IPFS)
+ 
++namespace {
++
++// CUSTOM BUILD: Show error dialog when required command line flag is missing
++void ShowUnauthorizedLaunchDialog() {
++#if BUILDFLAG(IS_ANDROID)
++  // On Android, log the error
++  LOG(ERROR) << "Browser launched without required --authorized-launch flag";
++#else
++  // On desktop platforms, show a message box
++  chrome::ShowWarningMessageBoxSync(
++      gfx::NativeWindow(),  // parent window
++      u"Unauthorized Launch",
++      u"This browser requires the --authorized-launch command line flag.\n\n"
++      u"Please contact your system administrator for assistance.");
++#endif
++}
++
++}  // namespace
++
+ ChromeBrowserMainParts::ChromeBrowserMainParts(bool is_integration_test,
+                                                StartupData* startup_data)
+     : ChromeBrowserMainParts_ChromiumImpl(is_integration_test, startup_data) {}
+@@ -76,6 +103,15 @@ ChromeBrowserMainParts::ChromeBrowserMainParts(bool is_integration_test,
+ ChromeBrowserMainParts::~ChromeBrowserMainParts() = default;
+ 
+ int ChromeBrowserMainParts::PreMainMessageLoopRun() {
++  // CUSTOM BUILD: Check for required command line flag
++  // If the flag is missing, show error dialog and exit
++  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  if (!command_line->HasSwitch("authorized-launch")) {
++    ShowUnauthorizedLaunchDialog();
++    // Return error code to prevent browser from starting
++    return CHROME_RESULT_CODE_MISSING_DATA;
++  }
++
+   brave_component_updater::BraveOnDemandUpdater::GetInstance()
+       ->RegisterOnDemandUpdater(
+           base::CommandLine::ForCurrentProcess()->HasSwitch(

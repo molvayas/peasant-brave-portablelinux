@@ -1,0 +1,285 @@
+Description: Add documentation for launch authorization feature
+License: Proprietary (see LICENSE-CUSTOM)
+Files: browser/LAUNCH_AUTHORIZATION.md
+Author: [Your Organization]
+Date: 2025-11-12
+
+
+diff --git a/browser/LAUNCH_AUTHORIZATION.md b/browser/LAUNCH_AUTHORIZATION.md
+new file mode 100644
+index 00000000000..51f2956dfe3
+--- /dev/null
++++ b/browser/LAUNCH_AUTHORIZATION.md
+@@ -0,0 +1,272 @@
++# Launch Authorization Check
++
++This document explains the command line flag requirement for launching the browser.
++
++## Overview
++
++The browser has been modified to require a specific command line flag (`--authorized-launch`) to start. If this flag is missing, the browser will:
++
++1. Show an error dialog (on desktop platforms)
++2. Log an error message (on Android)
++3. Exit immediately without starting
++
++## Implementation
++
++### Location
++- **File**: `brave/browser/brave_browser_main_parts.cc`
++- **Method**: `ChromeBrowserMainParts::PreMainMessageLoopRun()`
++
++### How It Works
++
++```cpp
++int ChromeBrowserMainParts::PreMainMessageLoopRun() {
++  // Check for required command line flag
++  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  if (!command_line->HasSwitch("authorized-launch")) {
++    ShowUnauthorizedLaunchDialog();
++    return chrome::RESULT_CODE_MISSING_DATA;
++  }
++  
++  // Continue with normal startup...
++}
++```
++
++### Error Dialog
++
++**Desktop (Windows/Mac/Linux):**
++```
++┌────────────────────────────────────┐
++│      Unauthorized Launch           │
++├────────────────────────────────────┤
++│ This browser requires the          │
++│ --authorized-launch command line   │
++│ flag.                              │
++│                                    │
++│ Please contact your system         │
++│ administrator for assistance.      │
++│                                    │
++│              [ OK ]                 │
++└────────────────────────────────────┘
++```
++
++**Android:**
++- Logs error to logcat: `"Browser launched without required --authorized-launch flag"`
++- Browser exits immediately
++
++## Usage
++
++### Correct Launch (Authorized)
++```bash
++# Windows
++chrome.exe --authorized-launch
++
++# macOS
++open -a "Brave Browser.app" --args --authorized-launch
++
++# Linux
++brave-browser --authorized-launch
++
++# Programmatically
++./brave --authorized-launch
++```
++
++### Failed Launch (Unauthorized)
++```bash
++# This will show the error dialog and exit
++./brave
++```
++
++## Customization
++
++### Change the Required Flag
++
++Edit `brave/browser/brave_browser_main_parts.cc`:
++
++```cpp
++// Change "authorized-launch" to your preferred flag name
++if (!command_line->HasSwitch("your-custom-flag")) {
++```
++
++### Change the Error Message
++
++Edit the `ShowUnauthorizedLaunchDialog()` function:
++
++```cpp
++void ShowUnauthorizedLaunchDialog() {
++  chrome::ShowWarningMessageBox(
++      nullptr,
++      u"Your Custom Title",
++      u"Your custom error message here.\n\n"
++      u"Additional instructions...");
++}
++```
++
++### Add Flag Value Validation
++
++You can also check for a specific flag value:
++
++```cpp
++std::string auth_token = command_line->GetSwitchValueASCII("authorized-launch");
++if (auth_token != "expected-secret-token") {
++  ShowUnauthorizedLaunchDialog();
++  return chrome::RESULT_CODE_MISSING_DATA;
++}
++```
++
++Then launch with:
++```bash
++./brave --authorized-launch=expected-secret-token
++```
++
++### Multiple Required Flags
++
++Check for multiple flags:
++
++```cpp
++if (!command_line->HasSwitch("authorized-launch") ||
++    !command_line->HasSwitch("deployment-key")) {
++  ShowUnauthorizedLaunchDialog();
++  return chrome::RESULT_CODE_MISSING_DATA;
++}
++```
++
++## Integration with Deployment
++
++### Enterprise Deployment
++
++You can integrate this with your deployment system:
++
++**Windows Group Policy:**
++```xml
++<policy name="BrowserCommandLineArgs">
++  <string>--authorized-launch</string>
++</policy>
++```
++
++**macOS MDM:**
++```xml
++<key>CommandLineArgs</key>
++<array>
++  <string>--authorized-launch</string>
++</array>
++```
++
++**Linux Launch Script:**
++```bash
++#!/bin/bash
++exec /opt/brave/brave --authorized-launch "$@"
++```
++
++### Kiosk Mode
++
++For kiosk deployments, add the flag to your kiosk configuration:
++
++```bash
++./brave --kiosk --authorized-launch https://your-app.com
++```
++
++## Testing
++
++### Development Testing
++
++During development, you may want to disable this check:
++
++**Option 1: Add conditional compilation**
++```cpp
++#if !defined(OFFICIAL_BUILD)
++  // Skip auth check in non-official builds
++  return ChromeBrowserMainParts_ChromiumImpl::PreMainMessageLoopRun();
++#endif
++```
++
++**Option 2: Always pass the flag in development**
++```bash
++# Add to your development scripts
++npm run start -- --authorized-launch
++```
++
++### Automated Tests
++
++Make sure your test scripts include the flag:
++
++```python
++# test script
++chrome_args = [
++    '--authorized-launch',
++    '--disable-gpu',
++    '--headless',
++]
++```
++
++## Exit Codes
++
++| Code | Meaning |
++|------|---------|
++| `chrome::RESULT_CODE_MISSING_DATA` | Missing required command line flag |
++| `0` | Normal exit (authorized launch) |
++
++## Security Considerations
++
++### Current Implementation
++- ⚠️ The flag check happens **after** basic initialization
++- ⚠️ The flag name is **visible** in process lists
++- ⚠️ Anyone can pass the flag manually
++
++### Recommendations for Enhanced Security
++
++1. **Add Token Validation:**
++   ```cpp
++   std::string token = command_line->GetSwitchValueASCII("authorized-launch");
++   if (!ValidateAuthToken(token)) {
++     ShowUnauthorizedLaunchDialog();
++     return chrome::RESULT_CODE_MISSING_DATA;
++   }
++   ```
++
++2. **Time-Based Tokens:**
++   Generate tokens that expire after a certain time
++
++3. **Hardware-Based Authorization:**
++   Check for specific hardware identifiers or security keys
++
++4. **Remote Authorization:**
++   Contact an authorization server to validate the launch
++
++5. **Signed Launch:**
++   Verify a cryptographic signature on the command line arguments
++
++## Troubleshooting
++
++### Browser Won't Start
++**Problem:** Error dialog appears immediately  
++**Solution:** Make sure you're passing `--authorized-launch` flag
++
++### No Error Dialog on Android
++**Problem:** Android doesn't show UI dialog  
++**Solution:** Check logcat for the error message:
++```bash
++adb logcat | grep "authorized-launch"
++```
++
++### Flag Not Being Recognized
++**Problem:** Dialog still appears even with flag  
++**Solution:** Check flag syntax (use `--` prefix, no spaces around `=` if using value)
++
++### Development Builds Affected
++**Problem:** Can't run development builds easily  
++**Solution:** Add conditional compilation or always pass flag in dev scripts
++
++## Files Modified
++
++- ✅ `brave/browser/brave_browser_main_parts.cc` - Added flag check and dialog
++
++No other files need modification. This is a minimal, self-contained implementation.
++
++## Related Documentation
++
++- [Chromium Command Line Flags](https://www.chromium.org/developers/how-tos/run-chromium-with-flags/)
++- [Chrome Result Codes](https://source.chromium.org/chromium/chromium/src/+/main:chrome/common/chrome_result_codes.h)
++- [Brave Browser Main Parts](brave_browser_main_parts.cc)
++
++
++

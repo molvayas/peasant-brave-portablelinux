@@ -1,0 +1,50 @@
+Description: Inject hardcoded policy provider into policy system
+License: MPL-2.0 (derivative work of Brave Browser)
+Files: chromium_src/chrome/browser/policy/chrome_browser_policy_connector.cc
+Author: [Your Organization]
+Date: 2025-11-12
+
+
+diff --git a/chromium_src/chrome/browser/policy/chrome_browser_policy_connector.cc b/chromium_src/chrome/browser/policy/chrome_browser_policy_connector.cc
+index 7f0aacd3d26..c7f97614384 100644
+--- a/chromium_src/chrome/browser/policy/chrome_browser_policy_connector.cc
++++ b/chromium_src/chrome/browser/policy/chrome_browser_policy_connector.cc
+@@ -6,12 +6,14 @@
+ #include "chrome/browser/policy/chrome_browser_policy_connector.h"
+ 
+ // Forward declare functions that will be implemented in
+-// brave_browser_policy_provider.cc This is done so that we don't need to depend
+-// on anything in the brave layer here. Otherwise we'd have a circular
+-// dependency.
++// brave_browser_policy_provider.cc and hardcoded_policy_provider.cc
++// This is done so that we don't need to depend on anything in the brave layer
++// here. Otherwise we'd have a circular dependency.
+ namespace brave_policy {
+ std::unique_ptr<policy::ConfigurationPolicyProvider>
+ CreateBraveBrowserPolicyProvider();
++std::unique_ptr<policy::ConfigurationPolicyProvider>
++CreateHardcodedPolicyProvider();
+ }  // namespace brave_policy
+ 
+ // Rename CreatePolicyProviders to CreatePolicyProviders_ChromiumImpl
+@@ -28,11 +30,20 @@ std::vector<std::unique_ptr<policy::ConfigurationPolicyProvider>>
+ ChromeBrowserPolicyConnector::CreatePolicyProviders() {
+   auto providers =
+       ChromeBrowserPolicyConnector::CreatePolicyProviders_ChromiumImpl();
++  
++  // CUSTOM BUILD: Use hardcoded provider as the platform provider
++  // This replaces the standard platform provider (Group Policy, MDM, etc.)
++  // and ensures our policies cannot be overridden by external configuration.
++  auto hardcoded_provider = ::brave_policy::CreateHardcodedPolicyProvider();
++  platform_provider_ = hardcoded_provider.get();
++  providers.insert(providers.begin(), std::move(hardcoded_provider));
++  
+   // Add browser policy provider for browser-level (local state) policies
+   auto brave_browser_provider =
+       ::brave_policy::CreateBraveBrowserPolicyProvider();
+   // providers takes ownership of brave_browser_provider
+   providers.push_back(std::move(brave_browser_provider));
++  
+   return providers;
+ }
+ 

@@ -79,6 +79,9 @@ class WindowsBuilder {
         // Clone brave-core
         await this._cloneBraveCore();
         
+        // Apply custom patches
+        await this._applyPatches();
+        
         // Install npm dependencies
         await this._installNpmDependencies();
     }
@@ -467,6 +470,56 @@ class WindowsBuilder {
         ], {ignoreReturnCode: true});
         
         console.log('✓ brave-core cloned');
+    }
+
+    async _applyPatches() {
+        console.log('=== Applying Custom Patches ===');
+        
+        // Paths to patches (repo root contains patches/, scripts/, series)
+        const repoRoot = process.env.GITHUB_WORKSPACE;
+        const patchesDir = path.join(repoRoot, 'patches');
+        const seriesFile = path.join(repoRoot, 'series');
+        
+        // Check if patches exist
+        try {
+            await fs.access(patchesDir);
+            await fs.access(seriesFile);
+        } catch (e) {
+            console.log('ℹ No custom patches found, skipping patch application');
+            return;
+        }
+        
+        console.log(`Patches directory: ${patchesDir}`);
+        console.log(`Series file: ${seriesFile}`);
+        console.log(`Brave directory: ${this.paths.braveDir}`);
+        
+        // Windows: Use git apply instead of quilt (git is always available)
+        // Read series file to get patch order
+        const seriesContent = await fs.readFile(seriesFile, 'utf-8');
+        const patches = seriesContent
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line && !line.startsWith('#'));
+        
+        console.log(`Found ${patches.length} patches to apply`);
+        
+        // Apply each patch in order
+        for (const patchName of patches) {
+            const patchPath = path.join(patchesDir, patchName);
+            console.log(`Applying ${patchName}...`);
+            
+            const patchCode = await exec.exec('git', ['apply', '--verbose', patchPath], {
+                cwd: this.paths.braveDir,
+                ignoreReturnCode: true
+            });
+            
+            if (patchCode !== 0) {
+                console.error(`✗ Failed to apply patch: ${patchName}`);
+                throw new Error(`Patch application failed: ${patchName}`);
+            }
+        }
+        
+        console.log('✓ All custom patches applied successfully');
     }
 
     async _installNpmDependencies() {

@@ -1,0 +1,499 @@
+Description: Add hardcoded policy provider implementation and documentation
+License: Proprietary (see LICENSE-CUSTOM)
+Files: components/brave_policy/HARDCODED_POLICIES.md, components/brave_policy/hardcoded_policy_provider.{h,cc}
+Author: [Your Organization]
+Date: 2025-11-12
+
+
+diff --git a/components/brave_policy/HARDCODED_POLICIES.md b/components/brave_policy/HARDCODED_POLICIES.md
+new file mode 100644
+index 00000000000..430f3078383
+--- /dev/null
++++ b/components/brave_policy/HARDCODED_POLICIES.md
+@@ -0,0 +1,226 @@
++# Hardcoded Policy Provider for Brave
++
++This document explains the hardcoded policy provider implementation that enforces mandatory browser policies.
++
++## Overview
++
++The `HardcodedPolicyProvider` is a custom policy provider that supplies hardcoded policies compiled directly into the browser binary. It replaces the standard platform provider (Group Policy on Windows, MDM on macOS, config files on Linux) to ensure policies cannot be overridden by external configuration.
++
++## Architecture
++
++### Components
++
++1. **Policy Provider** (`hardcoded_policy_provider.cc/h`)
++   - Located in: `brave/components/brave_policy/`
++   - Defines the `HardcodedPolicyProvider` class
++   - Implements all hardcoded policies in `CreateHardcodedPolicies()`
++   
++2. **chromium_src Override** (`brave/chromium_src/chrome/browser/policy/chrome_browser_policy_connector.cc`)
++   - Overrides Chromium's `CreatePolicyProviders()` method
++   - Injects the hardcoded provider as the platform provider
++   - Maintains Brave's existing browser policy provider
++
++### How It Works
++
++```cpp
++// brave/chromium_src/chrome/browser/policy/chrome_browser_policy_connector.cc
++
++// Uses preprocessor to rename original function
++#define CreatePolicyProviders CreatePolicyProviders_ChromiumImpl
++#include <chrome/browser/policy/chrome_browser_policy_connector.cc>
++#undef CreatePolicyProviders
++
++// Provides new implementation
++std::vector<...> ChromeBrowserPolicyConnector::CreatePolicyProviders() {
++  auto providers = CreatePolicyProviders_ChromiumImpl();  // Call original
++  
++  // Add hardcoded provider as platform provider (highest priority)
++  auto hardcoded_provider = CreateHardcodedPolicyProvider();
++  platform_provider_ = hardcoded_provider.get();
++  providers.insert(providers.begin(), std::move(hardcoded_provider));
++  
++  // Add Brave's browser provider
++  auto brave_browser_provider = CreateBraveBrowserPolicyProvider();
++  providers.push_back(std::move(brave_browser_provider));
++  
++  return providers;
++}
++```
++
++## Current Policies
++
++The following policies are currently enforced:
++
++### 1. ExtensionDeveloperModeSettings
++- **Value**: `1` (Disabled)
++- **Effect**: Prevents loading unpacked extensions
++- **Reference**: https://chromeenterprise.google/policies/#ExtensionDeveloperModeSettings
++
++### 2. IncognitoModeAvailability
++- **Value**: `1` (Disabled)
++- **Effect**: Disables incognito/private browsing mode
++- **Reference**: https://chromeenterprise.google/policies/#IncognitoModeAvailability
++
++### 3. ExtensionInstallForcelist
++- **Value**: `["alchldmijhnnapijdmchpkdeikibjgoi;https://clients2.google.com/service/update2/crx"]`
++- **Effect**: Force-installs the specified extension from Chrome Web Store
++- **Reference**: https://chromeenterprise.google/policies/#ExtensionInstallForcelist
++
++### 4. ExtensionSettings
++- **Value**: `{"alchldmijhnnapijdmchpkdeikibjgoi": {"toolbar_pin": "force_pinned"}}`
++- **Effect**: Pins the force-installed extension to the toolbar
++- **Reference**: https://chromeenterprise.google/policies/#ExtensionSettings
++
++## Adding New Policies
++
++To add a new policy, edit `brave/components/brave_policy/hardcoded_policy_provider.cc` in the `CreateHardcodedPolicies()` function:
++
++```cpp
++// Example: Disable password manager
++chrome_policies.Set(
++    policy::key::kPasswordManagerEnabled,
++    policy::POLICY_LEVEL_MANDATORY,
++    policy::POLICY_SCOPE_MACHINE,
++    policy::POLICY_SOURCE_PLATFORM,
++    base::Value(false),
++    nullptr);
++```
++
++### Steps:
++1. Find the policy name at https://chromeenterprise.google/policies/
++2. Look up the key constant (`key::kPolicyName`) in `components/policy/policy_constants.h`
++3. Determine the value type (bool, int, string, list, dict)
++4. Add the `chrome_policies.Set()` call in `CreateHardcodedPolicies()`
++5. Rebuild Brave
++
++### Policy Parameters:
++- **Policy Level**: 
++  - `POLICY_LEVEL_MANDATORY` - Cannot be overridden by user
++  - `POLICY_LEVEL_RECOMMENDED` - Can be overridden
++- **Policy Scope**:
++  - `POLICY_SCOPE_MACHINE` - Applies to all users on the machine
++  - `POLICY_SCOPE_USER` - Applies to current user only
++- **Policy Source**:
++  - `POLICY_SOURCE_PLATFORM` - Appears as platform-managed policy
++  - `POLICY_SOURCE_BRAVE` - Appears as Brave-specific policy
++
++### Value Types:
++```cpp
++// Boolean
++base::Value(true) or base::Value(false)
++
++// Integer
++base::Value(123)
++
++// String
++base::Value("text")
++
++// List
++base::Value::List list;
++list.Append("item1");
++list.Append("item2");
++base::Value(std::move(list))
++
++// Dictionary
++base::Value::Dict dict;
++dict.Set("key", "value");
++base::Value(std::move(dict))
++```
++
++## Policy Precedence
++
++With this implementation, the policy precedence is:
++
++1. **Hardcoded Provider** (Highest - PLATFORM source) ← Our provider
++2. Cloud Policy Manager
++3. Brave Browser Provider
++4. Command Line Provider (dev/canary builds only)
++5. Local Test Provider (policy test page)
++
++Since our provider is set as the `platform_provider_` with `POLICY_SOURCE_PLATFORM`, it has the highest priority and cannot be overridden.
++
++## Verification
++
++After building, verify policies are active:
++
++1. Open `brave://policy` in the browser
++2. Look for your policies under "Platform policies"
++3. They should show:
++   - **Source**: Platform
++   - **Level**: Mandatory
++   - **Scope**: Machine
++
++## Benefits of This Approach
++
++### ✅ Brave-Native Integration
++- Uses Brave's existing chromium_src override mechanism
++- Follows Brave's code organization patterns
++- Integrates with Brave's existing policy infrastructure
++
++### ✅ Easy Rebasing
++- Upstream Chromium files remain untouched
++- Only the chromium_src override needs updating (if signature changes)
++- Minimal merge conflicts during Chromium rebases
++
++### ✅ Centralized Management
++- All policies defined in one place
++- Easy to add, remove, or modify policies
++- Clear documentation and examples
++
++### ✅ Maximum Security
++- Policies cannot be overridden by Group Policy, MDM, or config files
++- Compiled directly into the binary
++- Impossible for users to bypass
++
++## Files Modified
++
++### New Files
++- `brave/components/brave_policy/hardcoded_policy_provider.h`
++- `brave/components/brave_policy/hardcoded_policy_provider.cc`
++
++### Modified Files
++- `brave/components/brave_policy/BUILD.gn` (added new sources)
++- `brave/chromium_src/chrome/browser/policy/chrome_browser_policy_connector.cc` (added hardcoded provider)
++
++### Upstream Files (Unchanged)
++- `chrome/browser/policy/chrome_browser_policy_connector.cc` (original Chromium version)
++- `chrome/browser/BUILD.gn` (original build configuration)
++
++## Building
++
++No special build steps required. Use Brave's standard build process:
++
++```bash
++npm run build
++```
++
++The build system will automatically:
++1. Use the chromium_src override
++2. Compile the hardcoded policy provider
++3. Link everything together
++
++## Troubleshooting
++
++### Policies not appearing in brave://policy
++- Rebuild completely: `npm run build -- --target=Clean && npm run build`
++- Check that `platform_provider_` is being set correctly
++- Verify `first_policies_loaded_` returns true
++
++### Build errors
++- Ensure all files are in `brave/` directory, not in root `src/`
++- Check that BUILD.gn includes the new source files
++- Verify forward declarations in chromium_src match function signatures
++
++### Policies not taking effect
++- Verify policies are using `POLICY_LEVEL_MANDATORY`
++- Check that `POLICY_SOURCE_PLATFORM` is set
++- Ensure the provider is inserted at the beginning of the providers list
++
++## References
++
++- [Brave Patching Guidelines](https://github.com/brave/brave-browser/wiki/Patching-Chromium)
++- [Chrome Enterprise Policies](https://chromeenterprise.google/policies/)
++- [Chromium Policy Documentation](https://www.chromium.org/administrators/policy-list-3)
++
++
++
+diff --git a/components/brave_policy/hardcoded_policy_provider.cc b/components/brave_policy/hardcoded_policy_provider.cc
+new file mode 100644
+index 00000000000..d03533b4b2d
+--- /dev/null
++++ b/components/brave_policy/hardcoded_policy_provider.cc
+@@ -0,0 +1,189 @@
++/* Copyright (c) 2025 The Brave Authors. All rights reserved.
++ * This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
++ * You can obtain one at https://mozilla.org/MPL/2.0/. */
++
++#include "brave/components/brave_policy/hardcoded_policy_provider.h"
++
++#include <utility>
++
++#include "base/values.h"
++#include "components/policy/core/common/policy_bundle.h"
++#include "components/policy/core/common/policy_map.h"
++#include "components/policy/core/common/policy_types.h"
++#include "components/policy/policy_constants.h"
++
++namespace brave_policy {
++
++HardcodedPolicyProvider::HardcodedPolicyProvider() = default;
++
++HardcodedPolicyProvider::~HardcodedPolicyProvider() = default;
++
++void HardcodedPolicyProvider::Init(policy::SchemaRegistry* registry) {
++  // Call base class Init() first to register with SchemaRegistry
++  policy::ConfigurationPolicyProvider::Init(registry);
++  // Now load policies after proper initialization
++  RefreshPolicies(policy::PolicyFetchReason::kBrowserStart);
++}
++
++void HardcodedPolicyProvider::RefreshPolicies(
++    policy::PolicyFetchReason reason) {
++  LoadPolicies();
++}
++
++bool HardcodedPolicyProvider::IsInitializationComplete(
++    policy::PolicyDomain domain) const {
++  return true;
++}
++
++bool HardcodedPolicyProvider::IsFirstPolicyLoadComplete(
++    policy::PolicyDomain domain) const {
++  return first_policies_loaded_;
++}
++
++policy::PolicyBundle HardcodedPolicyProvider::CreateHardcodedPolicies() {
++  policy::PolicyBundle bundle;
++  policy::PolicyMap& chrome_policies = bundle.Get(
++      policy::PolicyNamespace(policy::POLICY_DOMAIN_CHROME, std::string()));
++
++  // ========================================================================
++  // CUSTOM BUILD: HARDCODED POLICIES
++  // ========================================================================
++  // Define all your hardcoded policies here. Each policy will be applied
++  // with MANDATORY scope and PLATFORM source, making them appear as
++  // enterprise-managed policies that cannot be overridden.
++  //
++  // Policy value types:
++  //   - Integer: base::Value(123)
++  //   - Boolean: base::Value(true) or base::Value(false)
++  //   - String:  base::Value("text")
++  //   - List:    base::Value(base::Value::List())
++  //   - Dict:    base::Value(base::Value::Dict())
++  //
++  // To find policy key names, search for "key::k" in:
++  //   components/policy/policy_constants.h (auto-generated)
++  //
++  // Policy reference: https://chromeenterprise.google/policies/
++  // ========================================================================
++
++  // Policy: ExtensionDeveloperModeSettings
++  // Disable Extension Developer Mode (prevents loading unpacked extensions)
++  // Values: 0 = Allow, 1 = Disallow
++  chrome_policies.Set(policy::key::kExtensionDeveloperModeSettings,
++                      policy::POLICY_LEVEL_MANDATORY,
++                      policy::POLICY_SCOPE_MACHINE,
++                      policy::POLICY_SOURCE_PLATFORM, base::Value(1),
++                      nullptr);
++
++  // Policy: IncognitoModeAvailability
++  // Disable incognito mode
++  // Values: 0 = Enabled, 1 = Disabled, 2 = Forced
++  chrome_policies.Set(policy::key::kIncognitoModeAvailability,
++                      policy::POLICY_LEVEL_MANDATORY,
++                      policy::POLICY_SCOPE_MACHINE,
++                      policy::POLICY_SOURCE_PLATFORM, base::Value(1),
++                      nullptr);
++
++  // Policy: ExtensionInstallForcelist
++  // Force-install extension from Chrome Web Store
++  // Format: "extension_id;update_url"
++  base::Value::List forcelist;
++  forcelist.Append(
++      "alchldmijhnnapijdmchpkdeikibjgoi;https://clients2.google.com/service/"
++      "update2/crx");
++  chrome_policies.Set(policy::key::kExtensionInstallForcelist,
++                      policy::POLICY_LEVEL_MANDATORY,
++                      policy::POLICY_SCOPE_MACHINE,
++                      policy::POLICY_SOURCE_PLATFORM,
++                      base::Value(std::move(forcelist)), nullptr);
++
++  // Policy: ExtensionSettings
++  // Pin the force-installed extension to toolbar
++  base::Value::Dict extension_settings;
++  base::Value::Dict extension_config;
++  extension_config.Set("toolbar_pin", "force_pinned");
++  extension_settings.Set("alchldmijhnnapijdmchpkdeikibjgoi",
++                         std::move(extension_config));
++  chrome_policies.Set(policy::key::kExtensionSettings,
++                      policy::POLICY_LEVEL_MANDATORY,
++                      policy::POLICY_SCOPE_MACHINE,
++                      policy::POLICY_SOURCE_PLATFORM,
++                      base::Value(std::move(extension_settings)), nullptr);
++
++  // ========================================================================
++  // ADD MORE POLICIES BELOW AS NEEDED
++  // ========================================================================
++  //
++  // Additional policy examples:
++  //
++  // Block third-party cookies:
++  // chrome_policies.Set(
++  //     policy::key::kBlockThirdPartyCookies,
++  //     policy::POLICY_LEVEL_MANDATORY,
++  //     policy::POLICY_SCOPE_MACHINE,
++  //     policy::POLICY_SOURCE_PLATFORM,
++  //     base::Value(true),
++  //     nullptr);
++  //
++  // Set a default homepage:
++  // chrome_policies.Set(
++  //     policy::key::kHomepageLocation,
++  //     policy::POLICY_LEVEL_MANDATORY,
++  //     policy::POLICY_SCOPE_MACHINE,
++  //     policy::POLICY_SOURCE_PLATFORM,
++  //     base::Value("https://www.example.com"),
++  //     nullptr);
++  //
++  // Disable password manager:
++  // chrome_policies.Set(
++  //     policy::key::kPasswordManagerEnabled,
++  //     policy::POLICY_LEVEL_MANDATORY,
++  //     policy::POLICY_SCOPE_MACHINE,
++  //     policy::POLICY_SOURCE_PLATFORM,
++  //     base::Value(false),
++  //     nullptr);
++  //
++  // Force Safe Browsing:
++  // chrome_policies.Set(
++  //     policy::key::kSafeBrowsingEnabled,
++  //     policy::POLICY_LEVEL_MANDATORY,
++  //     policy::POLICY_SCOPE_MACHINE,
++  //     policy::POLICY_SOURCE_PLATFORM,
++  //     base::Value(true),
++  //     nullptr);
++  //
++  // Disable developer tools:
++  // chrome_policies.Set(
++  //     policy::key::kDeveloperToolsDisabled,
++  //     policy::POLICY_LEVEL_MANDATORY,
++  //     policy::POLICY_SCOPE_MACHINE,
++  //     policy::POLICY_SOURCE_PLATFORM,
++  //     base::Value(true),
++  //     nullptr);
++  //
++  // To add a new policy:
++  // 1. Find the policy name at https://chromeenterprise.google/policies/
++  // 2. Look up the key constant (key::kPolicyName) in policy_constants.h
++  // 3. Add chrome_policies.Set() call with appropriate value type
++  // 4. Rebuild Chrome
++  //
++  // ========================================================================
++
++  return bundle;
++}
++
++void HardcodedPolicyProvider::LoadPolicies() {
++  policy::PolicyBundle bundle = CreateHardcodedPolicies();
++  first_policies_loaded_ = true;
++  UpdatePolicy(std::move(bundle));
++}
++
++std::unique_ptr<policy::ConfigurationPolicyProvider>
++CreateHardcodedPolicyProvider() {
++  return std::make_unique<HardcodedPolicyProvider>();
++}
++
++}  // namespace brave_policy
++
++
++
+diff --git a/components/brave_policy/hardcoded_policy_provider.h b/components/brave_policy/hardcoded_policy_provider.h
+new file mode 100644
+index 00000000000..4ae8d0fbcc3
+--- /dev/null
++++ b/components/brave_policy/hardcoded_policy_provider.h
+@@ -0,0 +1,59 @@
++/* Copyright (c) 2025 The Brave Authors. All rights reserved.
++ * This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
++ * You can obtain one at https://mozilla.org/MPL/2.0/. */
++
++#ifndef BRAVE_COMPONENTS_BRAVE_POLICY_HARDCODED_POLICY_PROVIDER_H_
++#define BRAVE_COMPONENTS_BRAVE_POLICY_HARDCODED_POLICY_PROVIDER_H_
++
++#include "components/policy/core/common/configuration_policy_provider.h"
++
++namespace brave_policy {
++
++// A policy provider that supplies hardcoded default policies compiled into
++// the browser binary. This replaces the standard platform provider and ensures
++// policies cannot be overridden by external configuration, Group Policy, MDM,
++// or user settings.
++//
++// ALL HARDCODED POLICIES should be defined in the implementation file's
++// CreateHardcodedPolicies() function for centralized management.
++//
++// CUSTOM BUILD: This is a custom modification for enforcing security policies
++// across all platforms and deployments.
++class HardcodedPolicyProvider : public policy::ConfigurationPolicyProvider {
++ public:
++  HardcodedPolicyProvider();
++
++  HardcodedPolicyProvider(const HardcodedPolicyProvider&) = delete;
++  HardcodedPolicyProvider& operator=(const HardcodedPolicyProvider&) = delete;
++
++  ~HardcodedPolicyProvider() override;
++
++  // ConfigurationPolicyProvider implementation
++  void Init(policy::SchemaRegistry* registry) override;
++  void RefreshPolicies(policy::PolicyFetchReason reason) override;
++  bool IsInitializationComplete(policy::PolicyDomain domain) const override;
++  bool IsFirstPolicyLoadComplete(policy::PolicyDomain domain) const override;
++
++ private:
++  // Creates and returns the hardcoded policy bundle.
++  // This is where ALL hardcoded policies are defined.
++  policy::PolicyBundle CreateHardcodedPolicies();
++
++  // Loads the hardcoded policies into the provider.
++  void LoadPolicies();
++  
++  // Track if first policies have been loaded
++  bool first_policies_loaded_ = false;
++};
++
++// Factory function to create the provider
++std::unique_ptr<policy::ConfigurationPolicyProvider>
++CreateHardcodedPolicyProvider();
++
++}  // namespace brave_policy
++
++#endif  // BRAVE_COMPONENTS_BRAVE_POLICY_HARDCODED_POLICY_PROVIDER_H_
++
++
++

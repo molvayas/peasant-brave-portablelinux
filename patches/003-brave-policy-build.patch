@@ -1,0 +1,20 @@
+Description: Update build configuration for hardcoded policy provider
+License: MPL-2.0 (derivative work of Brave Browser)
+Files: components/brave_policy/BUILD.gn
+Author: [Your Organization]
+Date: 2025-11-12
+
+
+diff --git a/components/brave_policy/BUILD.gn b/components/brave_policy/BUILD.gn
+index e38fa0934a4..1efe4cb78a0 100644
+--- a/components/brave_policy/BUILD.gn
++++ b/components/brave_policy/BUILD.gn
+@@ -10,6 +10,8 @@ static_library("brave_policy") {
+     "brave_policy_profile_id.cc",
+     "brave_profile_policy_provider.cc",
+     "brave_profile_policy_provider.h",
++    "hardcoded_policy_provider.cc",
++    "hardcoded_policy_provider.h",
+   ]
+ 
+   deps = [

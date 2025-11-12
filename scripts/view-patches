@@ -1,0 +1,69 @@
+#!/bin/bash
+# View patch status and summary
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RAVEN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+BRAVE_DIR="$RAVEN_DIR/../brave"
+PATCHES_DIR="$RAVEN_DIR/patches"
+SERIES_FILE="$RAVEN_DIR/series"
+
+BRAVE_VERSION=$(cat "$RAVEN_DIR/brave_version.txt" 2>/dev/null || echo "unknown")
+
+echo "=========================================="
+echo "Raven Patch Management System"
+echo "=========================================="
+echo "Target Brave version: $BRAVE_VERSION"
+echo ""
+
+# Count patches
+PATCH_COUNT=$(cat "$SERIES_FILE" | grep -v '^#' | grep -v '^$' | wc -l | tr -d ' ')
+echo "Total patches: $PATCH_COUNT"
+echo ""
+
+# List patches with sizes
+echo "Patches:"
+echo "--------"
+while IFS= read -r patch; do
+    # Skip comments and empty lines
+    [[ "$patch" =~ ^#.*$ ]] && continue
+    [[ -z "$patch" ]] && continue
+    
+    patch_file="$PATCHES_DIR/$patch"
+    if [ -f "$patch_file" ]; then
+        size=$(du -h "$patch_file" | cut -f1)
+        printf "%-50s %6s\n" "$patch" "$size"
+    fi
+done < "$SERIES_FILE"
+echo ""
+
+# Check if patches are applied
+if [ -d "$BRAVE_DIR" ]; then
+    export QUILT_PATCHES="$PATCHES_DIR"
+    export QUILT_SERIES="$SERIES_FILE"
+    export QUILT_PC="$BRAVE_DIR/.pc"
+    
+    cd "$BRAVE_DIR" 2>/dev/null
+    
+    if [ -f "$BRAVE_DIR/.pc/applied-patches" ] && [ -s "$BRAVE_DIR/.pc/applied-patches" ]; then
+        APPLIED_COUNT=$(wc -l < "$BRAVE_DIR/.pc/applied-patches" | tr -d ' ')
+        echo "Status: $APPLIED_COUNT/$PATCH_COUNT patches applied"
+        echo ""
+        echo "Applied patches:"
+        cat "$BRAVE_DIR/.pc/applied-patches"
+    else
+        echo "Status: No patches currently applied"
+    fi
+else
+    echo "Status: Brave directory not found at $BRAVE_DIR"
+fi
+
+echo ""
+echo "=========================================="
+echo "Commands:"
+echo "  scripts/apply-patches          - Apply all patches"
+echo "  scripts/unapply-patches        - Remove all patches"
+echo "  scripts/export-patches         - Export current changes"
+echo "  scripts/view-patches           - View this summary"
+echo "  scripts/update-brave-version   - Update to new Brave version"
+echo "=========================================="
+

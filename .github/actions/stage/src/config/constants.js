@@ -88,7 +88,7 @@ const PLATFORMS = {
         dependencies: [                              // Ubuntu packages for Chromium build
             'build-essential', 'git', 'python3', 'python3-pip',
             'python-setuptools', 'python3-distutils', 'python-is-python3',
-            'curl', 'lsb-release', 'sudo', 'tzdata', 'wget', 'zstd'
+            'curl', 'lsb-release', 'sudo', 'tzdata', 'wget', 'zstd', 'quilt'
         ],
         cleanupDirs: [                              // Platform-irrelevant source to remove
             'ios',                                  // iOS-specific code
@@ -112,7 +112,7 @@ const PLATFORMS = {
         dependencies: [                             // Same Ubuntu packages as native Linux
             'build-essential', 'git', 'python3', 'python3-pip',
             'python-setuptools', 'python3-distutils', 'python-is-python3',
-            'curl', 'lsb-release', 'sudo', 'tzdata', 'wget', 'zstd'
+            'curl', 'lsb-release', 'sudo', 'tzdata', 'wget', 'zstd', 'quilt'
         ],
         cleanupDirs: [                             // Same cleanup as native Linux
             'ios',
