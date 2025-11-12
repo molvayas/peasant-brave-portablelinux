@@ -44,7 +44,7 @@ class WindowsBuilder {
      */
     _ensurePaths() {
         if (!this.paths) {
-            this.paths = getBuildPaths(this.platform, this.buildType, this.arch);
+            this.paths = getBuildPaths(this.platform, this.buildType);
         }
     }
 

@@ -254,7 +254,7 @@ function isWSL() {
  * @returns {object} Complete platform configuration object
  * @throws {Error} If platform is not supported
  */
-function getPlatformConfig(platform, arch = null) {
+function getPlatformConfig(platform) {
     let platformKey = platform.toLowerCase();
 
     // Auto-detect WSL for Linux platform and switch to optimized config
@@ -267,20 +267,7 @@ function getPlatformConfig(platform, arch = null) {
     if (!config) {
         throw new Error(`Unsupported platform: ${platform}. Supported: ${Object.keys(PLATFORMS).join(', ')}`);
     }
-    
-    // Windows ARM64: Use user-writable directory on C: drive (ARM64 Windows images don't have D: drive)
-    if (platformKey === 'windows' && arch && arch.toLowerCase() === 'arm64') {
-        // Use USERPROFILE environment variable for robust path resolution
-        // Falls back to C:\Users\runner\brave-build if USERPROFILE is not set
-        const userProfile = process.env.USERPROFILE || 'C:\\Users\\runner';
-        const workDir = path.join(userProfile, 'brave-build');
-        console.log(`WINDOWS ARM64: Using user-writable directory: ${workDir} (ARM64 Windows images don't have D: drive)`);
-        return {
-            ...config,
-            workDir: workDir
-        };
-    }
-    
+
     return config;
 }
 
@@ -314,8 +301,8 @@ function getArchConfig(arch) {
  * @param {string} arch - Optional architecture (x64, arm64, x86) for platform-specific path overrides
  * @returns {object} Path configuration object with all required directories
  */
-function getBuildPaths(platform, buildType = 'Component', arch = null) {
-    const platformConfig = getPlatformConfig(platform, arch);
+function getBuildPaths(platform, buildType = 'Component') {
+    const platformConfig = getPlatformConfig(platform);
     const workDir = platformConfig.workDir;
 
     // Chromium uses buildType as output directory name (Component/Release)
