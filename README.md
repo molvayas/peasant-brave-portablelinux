@@ -7,11 +7,11 @@ Automated Brave builds with minor patches.
 ```
 peasant-brave-portablelinux/
 ├── .github/          # GitHub Actions build workflows
-├── patches/          # Custom Brave patches (6 patches)
+├── patches/          # Patches for the Brave folder
 ├── scripts/          # Patch management scripts
 ├── series            # Patch application order
-├── LICENSE-MPL       # For Brave modifications (001-003)
-├── LICENSE-PROPRIETARY # For new files (004-006, transparency-only)
+├── LICENSE-MPL       # For Brave files modifications (001-003)
+├── LICENSE-PROPRIETARY # For everything else
 └── brave_version.txt # Target Brave version
 ```
 
