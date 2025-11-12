@@ -249,9 +249,10 @@ class LinuxBuilder {
             const debArch = this.arch === 'x64' ? 'amd64' : this.arch;
             
             // Try both possible filenames (with and without -stable suffix)
+            // Note: Build system creates brave-browser-* files, we rename to raven-* when copying
             const possibleNames = [
-                `raven-${versionWithoutV}-linux-${debArch}.zip`,
-                `raven-stable-${versionWithoutV}-linux-${debArch}.zip`
+                `brave-browser-${versionWithoutV}-linux-${debArch}.zip`,
+                `brave-browser-stable-${versionWithoutV}-linux-${debArch}.zip`
             ];
             
             let distZipPath = null;
